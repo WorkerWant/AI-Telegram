@@ -1639,7 +1639,11 @@ public class PushListenerController {
                                 SharedConfig.pushStringGetTimeEnd = SystemClock.elapsedRealtime();
                                 if (!task.isSuccessful()) {
                                     if (BuildVars.LOGS_ENABLED) {
-                                        FileLog.d("Failed to get regid");
+                                        FileLog.d("Failed to get FCM token");
+                                        Exception exception = task.getException();
+                                        if (exception != null) {
+                                            FileLog.e("FCM Token Error: " + exception.getMessage(), exception);
+                                        }
                                     }
                                     SharedConfig.pushStringStatus = "__FIREBASE_FAILED__";
                                     PushListenerController.sendRegistrationToServer(getPushType(), null);
@@ -1662,6 +1666,30 @@ public class PushListenerController {
                 try {
                     int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ApplicationLoader.applicationContext);
                     hasServices = resultCode == ConnectionResult.SUCCESS;
+                    if (BuildVars.LOGS_ENABLED) {
+                        String statusMessage;
+                        switch (resultCode) {
+                            case ConnectionResult.SUCCESS:
+                                statusMessage = "Google Play Services available";
+                                break;
+                            case ConnectionResult.SERVICE_MISSING:
+                                statusMessage = "Google Play Services missing";
+                                break;
+                            case ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED:
+                                statusMessage = "Google Play Services update required";
+                                break;
+                            case ConnectionResult.SERVICE_DISABLED:
+                                statusMessage = "Google Play Services disabled";
+                                break;
+                            case ConnectionResult.SERVICE_INVALID:
+                                statusMessage = "Google Play Services invalid";
+                                break;
+                            default:
+                                statusMessage = "Google Play Services error code: " + resultCode;
+                                break;
+                        }
+                        FileLog.d("Google Play Services check: " + statusMessage);
+                    }
                 } catch (Exception e) {
                     FileLog.e(e);
                     hasServices = false;

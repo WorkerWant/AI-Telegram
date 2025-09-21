@@ -39,6 +39,10 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.GPTApiClient;
+import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
@@ -50,6 +54,8 @@ import org.telegram.ui.PremiumPreviewFragment;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
+import java.io.File;
+import android.widget.Toast;
 
 public class TranscribeButton {
 
@@ -146,7 +152,8 @@ public class TranscribeButton {
         }
     }
 
-    protected void onOpen() {}
+    protected void onOpen() {
+    }
 
     public void setOpen(boolean open, boolean animated) {
         if (!shouldBeOpen && open && clickedToOpen) {
@@ -181,6 +188,7 @@ public class TranscribeButton {
 
     private boolean pressed = false;
     private long pressId = 0;
+
     public boolean onTouch(int action, float x, float y) {
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             if (pressed && action == MotionEvent.ACTION_UP) {
@@ -299,16 +307,17 @@ public class TranscribeButton {
     private int radius, diameter;
 
     private float a, b;
+
     public void setBounds(int x, int y, int w, int h, int r) {
         if (w != this.bounds.width() || h != this.bounds.height()) {
-            a = (float) (Math.atan((w/2f-r) / (h/2f)) * 180f / Math.PI);
-            b = (float) (Math.atan((w/2f) / (h/2f-r)) * 180f / Math.PI);
+            a = (float) (Math.atan((w / 2f - r) / (h / 2f)) * 180f / Math.PI);
+            b = (float) (Math.atan((w / 2f) / (h / 2f - r)) * 180f / Math.PI);
         }
         this.bounds.set(x, y, x + w, y + h);
         this.radius = Math.min(Math.min(w, h) / 2, r);
         this.diameter = this.radius * 2;
     }
-    
+
     public int width() {
         return this.bounds.width();
     }
@@ -370,7 +379,7 @@ public class TranscribeButton {
             addCorner(progressClipPath, bounds.left, bounds.bottom, diameter, 3, from, to, 180 + a, 180 + b);
             addLine(progressClipPath, bounds.left, bounds.bottom - radius, bounds.left, bounds.top + radius, from, to, 180 + b, 360 - b);
             addCorner(progressClipPath, bounds.left, bounds.top, diameter, 4, from, to, 360 - b, 360 - a);
-            addLine(progressClipPath, bounds.left + radius, bounds.top,  bounds.centerX(), bounds.top, from, to, 360 - a, 360);
+            addLine(progressClipPath, bounds.left + radius, bounds.top, bounds.centerX(), bounds.top, from, to, 360 - a, 360);
 
             strokePaint.setStrokeWidth(dp(1.5f));
             int wasAlpha = strokePaint.getAlpha();
@@ -444,6 +453,7 @@ public class TranscribeButton {
     }
 
     private float[] segments;
+
     private float[] getSegments(long d) {
         if (segments == null) {
             segments = new float[2];
@@ -459,13 +469,13 @@ public class TranscribeButton {
     }
 
     private void addLine(
-        Path path,
-        int x1,
-        int y1,
-        int x2,
-        int y2,
-        float L, float R,
-        float l, float r
+            Path path,
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            float L, float R,
+            float l, float r
     ) {
         if (x1 == x2 && y1 == y2) {
             return;
@@ -479,13 +489,13 @@ public class TranscribeButton {
     }
 
     private void addLine(
-        Path path,
-        int x1,
-        int y1,
-        int x2,
-        int y2,
-        float a,
-        float b
+            Path path,
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            float a,
+            float b
     ) {
         if (x1 == x2 && y1 == y2) {
             return;
@@ -496,23 +506,23 @@ public class TranscribeButton {
             return;
         }
         path.moveTo(
-            AndroidUtilities.lerp(x1, x2, a),
-            AndroidUtilities.lerp(y1, y2, a)
+                AndroidUtilities.lerp(x1, x2, a),
+                AndroidUtilities.lerp(y1, y2, a)
         );
         path.lineTo(
-            AndroidUtilities.lerp(x1, x2, b),
-            AndroidUtilities.lerp(y1, y2, b)
+                AndroidUtilities.lerp(x1, x2, b),
+                AndroidUtilities.lerp(y1, y2, b)
         );
     }
 
     private void addCorner(
-        Path path,
-        int x1,
-        int y1,
-        int d,
-        int side,
-        float L, float R,
-        float l, float r
+            Path path,
+            int x1,
+            int y1,
+            int d,
+            int side,
+            float L, float R,
+            float l, float r
     ) {
         if (L > R) {
             addCorner(path, x1, y1, d, side, (L - l) / (r - l), 1f);
@@ -523,13 +533,13 @@ public class TranscribeButton {
     }
 
     private void addCorner(
-        Path path,
-        int cx, // stands for x of corner, not center
-        int cy,
-        int d,
-        int side,
-        float a,
-        float b
+            Path path,
+            int cx, // stands for x of corner, not center
+            int cy,
+            int d,
+            int side,
+            float a,
+            float b
     ) {
         a = MathUtils.clamp(a, 0, 1);
         b = MathUtils.clamp(b, 0, 1);
@@ -537,15 +547,15 @@ public class TranscribeButton {
             return;
         }
         if (side == 1) { // top-right
-            AndroidUtilities.rectTmp.set(cx-d,cy,cx,cy+d);
+            AndroidUtilities.rectTmp.set(cx - d, cy, cx, cy + d);
         } else if (side == 2) { // bottom-right
-            AndroidUtilities.rectTmp.set(cx-d,cy-d,cx,cy);
+            AndroidUtilities.rectTmp.set(cx - d, cy - d, cx, cy);
         } else if (side == 3) { // bottom-left
-            AndroidUtilities.rectTmp.set(cx,cy-d,cx+d,cy);
+            AndroidUtilities.rectTmp.set(cx, cy - d, cx + d, cy);
         } else if (side == 4) { // top-left
-            AndroidUtilities.rectTmp.set(cx,cy,cx+d,cy+d);
+            AndroidUtilities.rectTmp.set(cx, cy, cx + d, cy + d);
         }
-        path.addArc(AndroidUtilities.rectTmp, -180+side*90+(90*a), 90*(b-a));
+        path.addArc(AndroidUtilities.rectTmp, -180 + side * 90 + (90 * a), 90 * (b - a));
     }
 
 
@@ -572,6 +582,7 @@ public class TranscribeButton {
         private RLottieDrawable lottie;
         private int lastColor;
         private Paint paint;
+
         public LoadingPointsDrawable(TextPaint textPaint) {
             this.paint = textPaint;
             float fontSize = textPaint.getTextSize() * 0.89f;
@@ -606,9 +617,13 @@ public class TranscribeButton {
         }
 
         @Override
-        public void setAlpha(int i) {}
+        public void setAlpha(int i) {
+        }
+
         @Override
-        public void setColorFilter(@Nullable ColorFilter colorFilter) {}
+        public void setColorFilter(@Nullable ColorFilter colorFilter) {
+        }
+
         @Override
         public int getOpacity() {
             return PixelFormat.TRANSPARENT;
@@ -651,8 +666,8 @@ public class TranscribeButton {
 
     public static boolean isTranscribing(MessageObject messageObject) {
         return (
-            (transcribeOperationsByDialogPosition != null && (transcribeOperationsByDialogPosition.containsValue(messageObject) || transcribeOperationsByDialogPosition.containsKey((Integer) reqInfoHash(messageObject)))) ||
-            (transcribeOperationsById != null && messageObject != null && messageObject.messageOwner != null && transcribeOperationsById.containsKey(messageObject.messageOwner.voiceTranscriptionId))
+                (transcribeOperationsByDialogPosition != null && (transcribeOperationsByDialogPosition.containsValue(messageObject) || transcribeOperationsByDialogPosition.containsKey((Integer) reqInfoHash(messageObject)))) ||
+                        (transcribeOperationsById != null && messageObject != null && messageObject.messageOwner != null && transcribeOperationsById.containsKey(messageObject.messageOwner.voiceTranscriptionId))
         );
     }
 
@@ -666,6 +681,11 @@ public class TranscribeButton {
         long dialogId = DialogObject.getPeerDialogId(peer);
         int messageId = messageObject.messageOwner.id;
         if (open) {
+            boolean useFallback = SharedConfig.aiTranscribeFallback && !TextUtils.isEmpty(SharedConfig.aiApiToken);
+            if (useFallback) {
+                startLocalTranscription(messageObject, delegate);
+                return;
+            }
             if (messageObject.messageOwner.voiceTranscription != null && messageObject.messageOwner.voiceTranscriptionFinal) {
                 TranscribeButton.openVideoTranscription(messageObject);
                 messageObject.messageOwner.voiceTranscriptionOpen = true;
@@ -715,6 +735,10 @@ public class TranscribeButton {
                         transcribeOperationsById.put(id, messageObject);
                         messageObject.messageOwner.voiceTranscriptionId = id;
                     } else {
+                        if (SharedConfig.aiTranscribeFallback && !TextUtils.isEmpty(SharedConfig.aiApiToken)) {
+                            AndroidUtilities.runOnUIThread(() -> startLocalTranscription(messageObject, delegate));
+                            return;
+                        }
                         if (err != null && err.text != null) {
                             if (err.text.startsWith("FLOOD_WAIT_")) {
                                 MessagesController.getInstance(account).updateTranscribeAudioTrialCurrentNumber(0);
@@ -732,7 +756,10 @@ public class TranscribeButton {
                                 return;
                             }
                         }
-
+                        final String apiErr = err != null && err.text != null ? err.text : "Unknown error";
+                        AndroidUtilities.runOnUIThread(() -> {
+                            Toast.makeText(ApplicationLoader.applicationContext, "Transcription failed: " + apiErr, Toast.LENGTH_SHORT).show();
+                        });
                         text = "";
                         isFinal = true;
                     }
@@ -764,6 +791,61 @@ public class TranscribeButton {
         }
     }
 
+    private static void startLocalTranscription(MessageObject messageObject, ChatMessageCell.ChatMessageCellDelegate delegate) {
+        if (messageObject == null || messageObject.messageOwner == null) return;
+        int account = messageObject.currentAccount;
+
+        File file = FileLoader.getInstance(account).getPathToMessage(messageObject.messageOwner);
+        if (file == null || !file.exists()) {
+            if (messageObject.getDocument() != null) {
+                FileLoader.getInstance(account).loadFile(messageObject.getDocument(), messageObject, FileLoader.PRIORITY_NORMAL_UP, 0);
+                AndroidUtilities.runOnUIThread(() -> {
+                    Toast.makeText(ApplicationLoader.applicationContext, "Downloading audio for transcription…", Toast.LENGTH_SHORT).show();
+                });
+            }
+            waitForFileThenTranscribe(messageObject, delegate, 0);
+            return;
+        }
+        TranscribeButton.openVideoTranscription(messageObject);
+        messageObject.messageOwner.voiceTranscriptionOpen = true;
+        MessagesStorage.getInstance(account).updateMessageVoiceTranscriptionOpen(messageObject.getDialogId(), messageObject.getId(), messageObject.messageOwner);
+        GPTApiClient.transcribeAudio(file, null, new GPTApiClient.GPTCallback() {
+            @Override
+            public void onSuccess(String response) {
+                String text = response == null ? "" : response.trim();
+                finishTranscription(messageObject, 0, text);
+            }
+
+            @Override
+            public void onError(String error) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (delegate != null) {
+                        delegate.needShowPremiumBulletin(0);
+                    }
+                    Toast.makeText(ApplicationLoader.applicationContext, "Transcription failed: " + error, Toast.LENGTH_SHORT).show();
+                });
+                finishTranscription(messageObject, 0, "");
+            }
+        });
+    }
+
+    private static void waitForFileThenTranscribe(MessageObject messageObject, ChatMessageCell.ChatMessageCellDelegate delegate, int attempt) {
+        if (attempt > 20) { // ~20s max
+            AndroidUtilities.runOnUIThread(() -> Toast.makeText(ApplicationLoader.applicationContext, "Transcription cancelled: no file", Toast.LENGTH_SHORT).show());
+            return;
+        }
+        int account = messageObject.currentAccount;
+        File file = FileLoader.getInstance(account).getPathToMessage(messageObject.messageOwner);
+        if (file != null && file.exists()) {
+            startLocalTranscription(messageObject, delegate);
+        } else {
+            AndroidUtilities.runOnUIThread(() -> {
+                AndroidUtilities.runOnUIThread(() -> {}, 0);
+            }, 0);
+            AndroidUtilities.runOnUIThread(() -> waitForFileThenTranscribe(messageObject, delegate, attempt + 1), 1000);
+        }
+    }
+
     public static boolean finishTranscription(MessageObject messageObject, long transcription_id, String text) {
         try {
             MessageObject messageObjectByTranscriptionId = null;
@@ -786,7 +868,8 @@ public class TranscribeButton {
                 NotificationCenter.getInstance(finalMessageObject.currentAccount).postNotificationName(NotificationCenter.voiceTranscriptionUpdate, finalMessageObject, (Long) transcription_id, (String) text, (Boolean) true, (Boolean) true);
             });
             return true;
-        } catch (Exception ignore) {}
+        } catch (Exception ignore) {
+        }
         return false;
     }
 
@@ -812,15 +895,8 @@ public class TranscribeButton {
         if (messageObject == null || messageObject.messageOwner == null) {
             return false;
         }
-        ConnectionsManager cc = ConnectionsManager.getInstance(messageObject.currentAccount);
-        MessagesController mc = MessagesController.getInstance(messageObject.currentAccount);
-        if (isFreeTranscribeInChat(messageObject)) {
-            return true;
-        }
-        if (mc.transcribeAudioTrialWeeklyNumber <= 0 || messageObject.getDuration() > mc.transcribeAudioTrialDurationMax) {
-            return false;
-        }
-        return mc.transcribeAudioTrialCooldownUntil == 0 || cc.getCurrentTime() > mc.transcribeAudioTrialCooldownUntil || mc.transcribeAudioTrialCurrentNumber > 0;
+
+        return true;
     }
 
     public static boolean isFreeTranscribeInChat(MessageObject messageObject) {
@@ -844,6 +920,9 @@ public class TranscribeButton {
     }
 
     public static boolean showTranscribeLock(MessageObject messageObject) {
+        if (SharedConfig.aiTranscribeFallback && !TextUtils.isEmpty(SharedConfig.aiApiToken)) {
+            return false;
+        }
         if (messageObject == null || messageObject.messageOwner == null) {
             return false;
         }

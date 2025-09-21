@@ -191,6 +191,7 @@ import org.telegram.ui.Components.TimerParticles;
 import org.telegram.ui.Components.TopicButton;
 import org.telegram.ui.Components.TopicSeparator;
 import org.telegram.ui.Components.TranscribeButton;
+import org.telegram.ui.Components.SummarizeButton;
 import org.telegram.ui.Components.TypefaceSpan;
 import org.telegram.ui.Components.URLSpanBotCommand;
 import org.telegram.ui.Components.URLSpanBrowser;
@@ -1264,6 +1265,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean useTranscribeButton;
     public TranscribeButton transcribeButton;
     private float transcribeX, transcribeY;
+    
+    private boolean useSummarizeButton;
+    public SummarizeButton summarizeButton;
+    private float summarizeX, summarizeY;
 
     private StaticLayout durationLayout;
     private double lastTime;
@@ -2644,6 +2649,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private boolean checkTranscribeButtonMotionEvent(MotionEvent event) {
         return useTranscribeButton && (!isPlayingRound || getVideoTranscriptionProgress() > 0 || wasTranscriptionOpen) && transcribeButton != null && transcribeButton.onTouch(event.getAction(), getEventX(event), getEventY(event));
+    }
+    
+    private boolean checkSummarizeButtonMotionEvent(MotionEvent event) {
+        if (!useSummarizeButton || summarizeButton == null) {
+            return false;
+        }
+        return summarizeButton.onTouch(event.getAction(), getEventX(event), getEventY(event));
     }
 
     private boolean checkLinkPreviewMotionEvent(MotionEvent event) {
@@ -4351,6 +4363,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (!result) {
             result = checkTranscribeButtonMotionEvent(event);
+        }
+        if (!result) {
+            result = checkSummarizeButtonMotionEvent(event);
         }
         if (!result) {
             result = checkAudioMotionEvent(event);
@@ -11359,30 +11374,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             !currentMessageObject.isQuickReply() &&
             !currentMessageObject.isRepostPreview &&
             (!currentMessageObject.isOutOwner() || currentMessageObject.isSent()) &&
-            (
-                UserConfig.getInstance(currentAccount).isPremium()
-                ||
-                TranscribeButton.isFreeTranscribeInChat(currentMessageObject)
-                ||
-                MessagesController.getInstance(currentAccount).transcribeAudioTrialWeeklyNumber > 0 &&
-                currentMessageObject.getDuration() <= MessagesController.getInstance(currentAccount).transcribeAudioTrialDurationMax && (
-                    currentMessageObject.messageOwner != null && (
-                        !TextUtils.isEmpty(currentMessageObject.messageOwner.voiceTranscription) ||
-                        currentMessageObject.messageOwner.voiceTranscriptionFinal
-                    ) ||
-                    TranscribeButton.canTranscribeTrial(currentMessageObject) || true
-                )
-                ||
-                MessagesController.getInstance(currentAccount).transcribeAudioTrialWeeklyNumber <= 0 &&
-                !MessagesController.getInstance(currentAccount).premiumFeaturesBlocked() &&
-                !MessagesController.getInstance(currentAccount).didPressTranscribeButtonEnough() && !currentMessageObject.isOutOwner() && (
-                    currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.voiceTranscriptionForce ||
-                    currentMessageObject.getDuration() >= 60
-                )
-            ) && (
-                currentMessageObject.isVoice() && useSeekBarWaveform ||
-                currentMessageObject.isRoundVideo()
-            ) && currentMessageObject.messageOwner != null && !(MessageObject.getMedia(currentMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaWebPage) &&
+            (currentMessageObject.isVoice() || currentMessageObject.isRoundVideo()) &&
+            currentMessageObject.messageOwner != null &&
+            !(MessageObject.getMedia(currentMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaWebPage) &&
             (currentMessageObject.messageOwner.media == null || currentMessageObject.messageOwner.media.ttl_seconds == 0)
         );
         updateSeekBarWaveformWidth(null);
@@ -11409,41 +11403,41 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (seekBarWaveform != null) {
                 if (transitionParams.animateUseTranscribeButton) {
                     seekBarWaveform.setSize(
-                        backgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress()) - dp(hasLinkPreview ? 10 : 0),
+                        backgroundWidth + offset - (int) getTotalButtonsOffset() - dp(hasLinkPreview ? 10 : 0),
                         dp(30),
                         fromBackgroundWidth + offset + (!useTranscribeButton ? -dp(34) : 0),
                         toBackgroundWidth + offset + (useTranscribeButton ? -dp(34) : 0)
                     );
                 } else {
                     seekBarWaveform.setSize(
-                        backgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress()) - dp(hasLinkPreview ? 10 : 0),
+                        backgroundWidth + offset - (int) getTotalButtonsOffset() - dp(hasLinkPreview ? 10 : 0),
                         dp(30),
-                        fromBackgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress()),
-                        toBackgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress())
+                        fromBackgroundWidth + offset - (int) getTotalButtonsOffset(),
+                        toBackgroundWidth + offset - (int) getTotalButtonsOffset()
                     );
                 }
             }
             if (seekBar != null) {
-                seekBar.setSize(backgroundWidth - (int) (getUseTranscribeButtonProgress() * dp(34)) - dp((documentAttachType == DOCUMENT_ATTACH_TYPE_MUSIC ? 65 : 72) + (hasLinkPreview ? 20 : 0)), dp(30));
+                seekBar.setSize(backgroundWidth - (int) getTotalButtonsOffset() - dp((documentAttachType == DOCUMENT_ATTACH_TYPE_MUSIC ? 65 : 72) + (hasLinkPreview ? 20 : 0)), dp(30));
             }
         } else {
             if (seekBarWaveform != null) {
                 if (transitionParams.animateUseTranscribeButton) {
                     seekBarWaveform.setSize(
-                        backgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress()) - dp(hasLinkPreview ? 10 : 0),
+                        backgroundWidth + offset - (int) getTotalButtonsOffset() - dp(hasLinkPreview ? 10 : 0),
                         dp(30),
                         backgroundWidth + offset + (!useTranscribeButton ? -dp(34) : 0) - dp(hasLinkPreview ? 10 : 0),
                         backgroundWidth + offset + (useTranscribeButton ? -dp(34) : 0)
                     );
                 } else {
                     seekBarWaveform.setSize(
-                        backgroundWidth + offset - (int) (dp(34) * getUseTranscribeButtonProgress()) - dp(hasLinkPreview ? 10 : 0),
+                        backgroundWidth + offset - (int) getTotalButtonsOffset() - dp(hasLinkPreview ? 10 : 0),
                         dp(30)
                     );
                 }
             }
             if (seekBar != null) {
-                seekBar.setSize(backgroundWidth - (int) (getUseTranscribeButtonProgress() * dp(34)) - dp((documentAttachType == DOCUMENT_ATTACH_TYPE_MUSIC ? 65 : 72) + (hasLinkPreview ? 20 : 0)), dp(30));
+                seekBar.setSize(backgroundWidth - (int) getTotalButtonsOffset() - dp((documentAttachType == DOCUMENT_ATTACH_TYPE_MUSIC ? 65 : 72) + (hasLinkPreview ? 20 : 0)), dp(30));
             }
         }
     }
@@ -13344,6 +13338,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             canvas.restore();
 
+            
             float transcribeAlpha = getUseTranscribeButtonProgress();
             float playingRoundAlpha = 0;
             if (transitionParams.animatePlayingRound) {
@@ -13358,10 +13353,89 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (!wasTranscriptionOpen) {
                 transcribeAlpha = AndroidUtilities.lerp(transcribeAlpha * (1f - playingRoundAlpha), transcribeAlpha, getVideoTranscriptionProgress());
             }
+            
+            // Handle summarize button when transcribeAlpha = 0 (no transcribe button visible)
+            if (transcribeAlpha <= 0 && documentAttachType == DOCUMENT_ATTACH_TYPE_AUDIO && SharedConfig.aiVoiceSummarize && currentMessageObject.messageOwner != null && (!currentMessageObject.isOutOwner() || currentMessageObject.isSent())) {
+                useSummarizeButton = true;
+                if (summarizeButton == null) {
+                    summarizeButton = new SummarizeButton(this, seekBarWaveform);
+                }
+                
+                // Calculate positioning when transcribe is not visible
+                int backgroundWidth = getCurrentBackgroundRight() - getCurrentBackgroundLeft() + dp(pinnedBottom ? 6 : 0);
+                int seekBarWidth = backgroundWidth - dp(92 + (hasLinkPreview ? 10 : 0) + 36);
+                
+                // Position just before where transcribe would be (34dp to the left)
+                summarizeX = seekBarX + dp(13 + 8) + seekBarWidth - dp(34);
+                summarizeY = seekBarY + dp(3);
+                
+                summarizeButton.setBounds(
+                    (int) summarizeX,
+                    (int) summarizeY,
+                    dp(30),
+                    dp(24),
+                    dp(8)
+                );
+            }
+            
             if (transcribeAlpha > 0 && !(documentAttachType == DOCUMENT_ATTACH_TYPE_ROUND && hasLinkPreview)) {
                 canvas.save();
                 int backgroundWidth = getCurrentBackgroundRight() - getCurrentBackgroundLeft() + dp(pinnedBottom ? 6 : 0);
                 int seekBarWidth = backgroundWidth - dp(92 + (hasLinkPreview ? 10 : 0) + 36);
+                
+                // Create and position summarize button INSIDE transcribe block where seekBarWidth is available
+                if (documentAttachType == DOCUMENT_ATTACH_TYPE_AUDIO && SharedConfig.aiVoiceSummarize && currentMessageObject.messageOwner != null && (!currentMessageObject.isOutOwner() || currentMessageObject.isSent())) {
+                    useSummarizeButton = true;
+                    if (summarizeButton == null) {
+                        summarizeButton = new SummarizeButton(this, seekBarWaveform);
+                    }
+                    
+                    // Position summarize button EXACTLY like transcribe but 34dp to the left
+                    // transcribeX = seekBarX + dp(13 + 8) + seekBarWidth
+                    // summarizeX = transcribeX - dp(34)
+                    if (drawSideButton != 0) {
+                        summarizeX = AndroidUtilities.lerp(
+                            seekBarX + dp(13 + 8) + seekBarWidth - dp(34), // 34dp before transcribe
+                            sideStartX - dp(34),
+                            1f - getVideoTranscriptionProgress()
+                        );
+                        summarizeY = AndroidUtilities.lerp(
+                            seekBarY + dp(3),
+                            sideStartY - dp(32 + 8),
+                            1f - getVideoTranscriptionProgress()
+                        );
+                    } else {
+                        summarizeX = AndroidUtilities.lerp(
+                            seekBarX + dp(13 + 8) + seekBarWidth - dp(34), // 34dp before transcribe
+                            currentMessageObject != null && currentMessageObject.isOutOwner() ?
+                                getCurrentBackgroundLeft() - dp(32 + 8 + 34) + dp(28) * playingRoundAlpha :
+                                getCurrentBackgroundRight() + dp(8) - dp(40 + 34) * playingRoundAlpha,
+                            1f - getVideoTranscriptionProgress()
+                        );
+                        float y = layoutHeight + transitionParams.deltaBottom - dp(28 - (drawPinnedBottom ? 2 : 0));
+                        if (!reactionsLayoutInBubble.isEmpty) {
+                            y -= reactionsLayoutInBubble.getCurrentTotalHeight(transitionParams.animateChangeProgress);
+                        }
+                        y = AndroidUtilities.lerp(y, dp(44) + namesOffset + getMediaOffsetY() - dp(1.7f), getVideoTranscriptionProgress());
+                        y += dp(1.7f);
+                        summarizeY = AndroidUtilities.lerp(
+                            seekBarY + dp(3),
+                            y - dp(12) - (currentMessageObject.isOutOwner() ? 0 : dp(28) * playingRoundAlpha),
+                            1f - getVideoTranscriptionProgress()
+                        );
+                    }
+                    
+                    summarizeButton.setBounds(
+                        (int) summarizeX,
+                        (int) summarizeY,
+                        AndroidUtilities.lerp(dp(30), dp(32), 1f - getVideoTranscriptionProgress()),
+                        AndroidUtilities.lerp(dp(24), dp(32), 1f - getVideoTranscriptionProgress()),
+                        AndroidUtilities.lerp(dp(8), dp(16), 1f - getVideoTranscriptionProgress())
+                    );
+                } else {
+                    useSummarizeButton = false;
+                }
+                
                 if (transcribeButton == null) {
                     transcribeButton = new TranscribeButton(this, seekBarWaveform) {
                         @Override
@@ -13395,6 +13469,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     transcribeButton.setLoading(TranscribeButton.isTranscribing(currentMessageObject), false);
                     transcribeButton.setLock(TranscribeButton.showTranscribeLock(currentMessageObject), false);
                 }
+                
                 if (drawSideButton != 0) {
                     transcribeX = AndroidUtilities.lerp(
                         seekBarX + dp(13 + 8) + seekBarWidth,
@@ -13433,6 +13508,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     AndroidUtilities.lerp(dp(24), dp(32), 1f - getVideoTranscriptionProgress()),
                     AndroidUtilities.lerp(dp(8), dp(16), 1f - getVideoTranscriptionProgress())
                 );
+                
                 transcribeButton.setColor(
                     ColorUtils.blendARGB(
                         getThemedColor(Theme.key_chat_serviceText),
@@ -13445,6 +13521,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 );
                 transcribeButton.draw(canvas, transcribeAlpha);
                 canvas.restore();
+            }
+            
+            // Draw summarize button (use absolute bounds, no extra translate)
+            if (useSummarizeButton && summarizeButton != null && documentAttachType == DOCUMENT_ATTACH_TYPE_AUDIO) {
+                summarizeButton.setColor(
+                    getThemedColor(currentMessageObject.isOutOwner() ? Theme.key_chat_outReactionButtonBackground : Theme.key_chat_inReactionButtonBackground),
+                    getThemedColor(currentMessageObject.isOutOwner() ? Theme.key_chat_outReactionButtonBackground : Theme.key_chat_inReactionButtonBackground),
+                    currentMessageObject.isOutOwner(),
+                    0
+                );
+                summarizeButton.draw(canvas, 1f);
             }
 
             if (documentAttachType == DOCUMENT_ATTACH_TYPE_AUDIO) {
@@ -13825,6 +13912,24 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else {
             return useTranscribeButton ? 1 : 0;
         }
+    }
+    
+    private float getUseSummarizeButtonProgress() {
+        // For now, return 1 if button is shown, 0 otherwise
+        // Could be animated in the future similar to transcribe button
+        return useSummarizeButton ? 1 : 0;
+    }
+    
+    private float getTotalButtonsOffset() {
+        // Calculate total offset for both buttons
+        float offset = 0;
+        if (getUseTranscribeButtonProgress() > 0) {
+            offset += dp(34) * getUseTranscribeButtonProgress();
+        }
+        if (getUseSummarizeButtonProgress() > 0) {
+            offset += dp(34) * getUseSummarizeButtonProgress();
+        }
+        return offset;
     }
 
     private void updateReactionLayoutPosition() {

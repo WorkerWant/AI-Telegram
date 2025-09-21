@@ -427,8 +427,11 @@ public class SharedConfig {
 
     public static void saveConfig() {
         synchronized (sync) {
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("saveConfig called");
+            }
             try {
-                SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("userconfing", Context.MODE_PRIVATE);
+                SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("userconfig", Context.MODE_PRIVATE);
                 SharedPreferences.Editor editor = preferences.edit();
                 editor.putBoolean("saveIncomingPhotos", saveIncomingPhotos);
                 editor.putString("passcodeHash1", passcodeHash);
@@ -478,6 +481,49 @@ public class SharedConfig {
                     editor.remove("appUpdate");
                 }
                 editor.putLong("appUpdateCheckTime", lastUpdateCheckTime);
+                
+                // AI settings
+                editor.putBoolean("aiEnabled", aiEnabled);
+                editor.putString("aiApiToken", aiApiToken);
+                editor.putInt("aiResponseSize", aiResponseSize);
+                editor.putInt("aiContextSize", aiContextSize);
+                editor.putInt("aiModel", aiModel);
+                editor.putInt("aiOutputLanguage", aiOutputLanguage);
+                editor.putInt("aiTypingDelay", aiTypingDelay);
+                editor.putBoolean("aiVoiceSummarize", aiVoiceSummarize);
+                editor.putBoolean("aiAutoReply", aiAutoReply);
+                editor.putString("aiVoiceSystemPrompt", aiVoiceSystemPrompt);
+                editor.putInt("aiVoiceMaxTokens", aiVoiceMaxTokens);
+                editor.putInt("aiVoiceModel", aiVoiceModel);
+                editor.putInt("aiVoiceResponseSize", aiVoiceResponseSize);
+                editor.putBoolean("aiCacheSummaries", aiCacheSummaries);
+                editor.putBoolean("aiTranscribeFallback", aiTranscribeFallback);
+                
+                if (BuildVars.LOGS_ENABLED) {
+                    FileLog.d("AI Settings saving: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
+                }
+                
+                if (aiEnabledUsers != null) {
+                    StringBuilder users = new StringBuilder();
+                    for (Long id : aiEnabledUsers) {
+                        if (users.length() > 0) users.append(",");
+                        users.append(id);
+                    }
+                    editor.putString("aiEnabledUsers", users.toString());
+                } else {
+                    editor.putString("aiEnabledUsers", "");
+                }
+                
+                if (aiEnabledGroups != null) {
+                    StringBuilder groups = new StringBuilder();
+                    for (Long id : aiEnabledGroups) {
+                        if (groups.length() > 0) groups.append(",");
+                        groups.append(id);
+                    }
+                    editor.putString("aiEnabledGroups", groups.toString());
+                } else {
+                    editor.putString("aiEnabledGroups", "");
+                }
 
                 editor.apply();
 
@@ -508,7 +554,7 @@ public class SharedConfig {
 
             BackgroundActivityPrefs.prefs = ApplicationLoader.applicationContext.getSharedPreferences("background_activity", Context.MODE_PRIVATE);
 
-            SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("userconfing", Context.MODE_PRIVATE);
+            SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("userconfig", Context.MODE_PRIVATE);
             saveIncomingPhotos = preferences.getBoolean("saveIncomingPhotos", false);
             passcodeHash = preferences.getString("passcodeHash1", "");
             appLocked = preferences.getBoolean("appLocked", false);
@@ -580,6 +626,53 @@ public class SharedConfig {
                 }
             } catch (Exception e) {
                 FileLog.e(e);
+            }
+            
+            // Load AI settings from userconfig
+            aiEnabled = preferences.getBoolean("aiEnabled", false);
+            aiApiToken = preferences.getString("aiApiToken", "");
+            aiResponseSize = preferences.getInt("aiResponseSize", 1);
+            aiContextSize = preferences.getInt("aiContextSize", 20);
+            aiModel = preferences.getInt("aiModel", 0);
+            aiOutputLanguage = preferences.getInt("aiOutputLanguage", 0);
+            aiTypingDelay = preferences.getInt("aiTypingDelay", 2);
+            aiVoiceSummarize = preferences.getBoolean("aiVoiceSummarize", true);
+            aiAutoReply = preferences.getBoolean("aiAutoReply", false);
+            aiVoiceSystemPrompt = preferences.getString("aiVoiceSystemPrompt", "");
+            aiVoiceMaxTokens = preferences.getInt("aiVoiceMaxTokens", 1024);
+            aiVoiceModel = preferences.getInt("aiVoiceModel", -1);
+            aiVoiceResponseSize = preferences.getInt("aiVoiceResponseSize", 1);
+            aiCacheSummaries = preferences.getBoolean("aiCacheSummaries", true);
+            aiTranscribeFallback = preferences.getBoolean("aiTranscribeFallback", false);
+            
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
+            }
+            
+            if (aiEnabledUsers == null) {
+                aiEnabledUsers = new HashSet<>();
+            }
+            aiEnabledUsers.clear();
+            String usersStr = preferences.getString("aiEnabledUsers", "");
+            if (!usersStr.isEmpty()) {
+                for (String id : usersStr.split(",")) {
+                    try {
+                        aiEnabledUsers.add(Long.parseLong(id));
+                    } catch (Exception ignored) {}
+                }
+            }
+            
+            if (aiEnabledGroups == null) {
+                aiEnabledGroups = new HashSet<>();
+            }
+            aiEnabledGroups.clear();
+            String groupsStr = preferences.getString("aiEnabledGroups", "");
+            if (!groupsStr.isEmpty()) {
+                for (String id : groupsStr.split(",")) {
+                    try {
+                        aiEnabledGroups.add(Long.parseLong(id));
+                    } catch (Exception ignored) {}
+                }
             }
 
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
@@ -670,7 +763,7 @@ public class SharedConfig {
             multipleReactionsPromoShowed = preferences.getBoolean("multipleReactionsPromoShowed", false);
             callEncryptionHintDisplayedCount = preferences.getInt("callEncryptionHintDisplayedCount", 0);
             debugVideoQualities = preferences.getBoolean("debugVideoQualities", false);
-
+            
             loadDebugConfig(preferences);
 
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("Notifications", Activity.MODE_PRIVATE);
@@ -1782,7 +1875,7 @@ public class SharedConfig {
     }
 
     public static SharedPreferences getPreferences() {
-        return ApplicationLoader.applicationContext.getSharedPreferences("userconfing", Context.MODE_PRIVATE);
+        return ApplicationLoader.applicationContext.getSharedPreferences("userconfig", Context.MODE_PRIVATE);
     }
 
     public static boolean deviceIsLow() {
@@ -1864,11 +1957,32 @@ public class SharedConfig {
 
     //DEBUG
     public static boolean drawActionBarShadow = true;
+    
+    // AI Settings
+    public static boolean aiEnabled;
+    public static String aiApiToken;
+    public static int aiResponseSize; // 0-small, 1-medium, 2-large
+    public static int aiContextSize;
+    public static int aiModel; // 0-GPT3.5, 1-GPT4  
+    public static int aiOutputLanguage; // 0-Auto, 1-English, 2-Ukrainian, 3-Russian
+    public static int aiTypingDelay; // seconds to simulate typing
+    public static boolean aiVoiceSummarize;
+    public static boolean aiAutoReply; // Auto-reply feature toggle
+    public static HashSet<Long> aiEnabledUsers;
+    public static HashSet<Long> aiEnabledGroups;
+    
+    // Voice Summarization Settings
+    public static String aiVoiceSystemPrompt; // Empty = use default
+    public static int aiVoiceMaxTokens;
+    public static int aiVoiceModel;
+    public static int aiVoiceResponseSize; // 0-short, 1-medium, 2-long, 3-detailed
+    public static boolean aiCacheSummaries; // Cache voice summaries
+    public static boolean aiTranscribeFallback; // Use OpenAI Whisper fallback
 
     private static void loadDebugConfig(SharedPreferences preferences) {
         drawActionBarShadow = preferences.getBoolean("drawActionBarShadow", true);
     }
-
+    
     public static void saveDebugConfig() {
         SharedPreferences pref = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
         pref.edit().putBoolean("drawActionBarShadow", drawActionBarShadow);
