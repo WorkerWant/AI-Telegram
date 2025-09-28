@@ -1100,16 +1100,16 @@ public class FileLoader extends BaseController {
             return false;
         }
         FilePathDatabase.FileMeta metadata = getFileMetadataFromParent(currentAccount, parentObject);
-        MessageObject messageObject = null;
+        MessageObject messageObject = parentObject instanceof MessageObject ? (MessageObject) parentObject : null;
         if (metadata != null) {
+            boolean override = SharedConfig.allowSaveToGalleryEverywhere || (SharedConfig.keepDisappearingMedia && messageObject != null && messageObject.isSecretMedia());
             int flag;
             long dialogId = metadata.dialogId;
-            if (getMessagesController().isChatNoForwards(getMessagesController().getChat(-dialogId)) || DialogObject.isEncryptedDialog(dialogId)) {
+            if (!override && (getMessagesController().isChatNoForwards(getMessagesController().getChat(-dialogId)) || DialogObject.isEncryptedDialog(dialogId))) {
                 return false;
             }
-            if (parentObject instanceof MessageObject) {
-                messageObject = (MessageObject) parentObject;
-                if (messageObject.isRoundVideo() || messageObject.isVoice() || messageObject.isAnyKindOfSticker() || messageObject.messageOwner.noforwards) {
+            if (messageObject != null) {
+                if (messageObject.isRoundVideo() || messageObject.isVoice() || messageObject.isAnyKindOfSticker() || (!override && messageObject.messageOwner.noforwards)) {
                     return false;
                 }
             } else {

@@ -3373,6 +3373,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             if (chatActivity != null && chatActivity.getDialogId() == UserObject.VERIFY) {
                 return true;
             }
+            if (SharedConfig.allowCopyEverywhere) {
+                return true;
+            }
             return chatActivity == null || !(
                 chatActivity.getDialogId() < 0 && chatActivity.getMessagesController().isChatNoForwards(-chatActivity.getDialogId()) ||
                 selectedView != null && selectedView.getMessageObject() != null && (selectedView.getMessageObject().messageOwner != null && selectedView.getMessageObject().messageOwner.noforwards)
@@ -10168,7 +10171,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, AndroidUtilities.dp(54), LocaleController.getString(R.string.Delete)));
         }
         actionMode.setItemVisibility(edit, canEditMessagesCount == 1 && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() == 1 ? View.VISIBLE : View.GONE);
-        actionMode.setItemVisibility(copy, !getMessagesController().isChatNoForwards(currentChat) && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
+        boolean copyVisible = (SharedConfig.allowCopyEverywhere || !getMessagesController().isChatNoForwards(currentChat)) && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0;
+        actionMode.setItemVisibility(copy, copyVisible ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(star, selectedMessagesCanStarIds[0].size() + selectedMessagesCanStarIds[1].size() != 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(delete, cantDeleteMessagesCount == 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(tag_message, getUserConfig().isPremium() ? View.VISIBLE : View.GONE);
@@ -15473,6 +15477,22 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.destroyTime != 0 || messageObject.messageOwner.ttl <= 0) {
             return null;
         }
+        if (SharedConfig.keepDisappearingMedia) {
+            Runnable markRead = () -> {
+                messageObject.messageOwner.destroyTime = 0;
+                messageObject.messageOwner.destroyTimeMillis = 0;
+                if (currentEncryptedChat != null) {
+                    getMessagesController().markMessageAsRead(dialog_id, messageObject.messageOwner.random_id, 0);
+                } else {
+                    getMessagesController().markMessageAsRead2(dialog_id, messageObject.getId(), null, 0, 0, false);
+                }
+            };
+            if (readNow) {
+                markRead.run();
+                return null;
+            }
+            return markRead;
+        }
         if (readNow) {
             final boolean delete = messageObject.messageOwner.ttl != 0x7FFFFFFF;
             final int ttl = messageObject.messageOwner.ttl == 0x7FFFFFFF ? 0 : messageObject.messageOwner.ttl;
@@ -15500,6 +15520,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
 
     private Runnable sendSecretMediaDelete(MessageObject messageObject) {
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.ttl != 0x7FFFFFFF) {
+            return null;
+        }
+        if (SharedConfig.keepDisappearingMedia) {
             return null;
         }
         final long taskId = getMessagesController().createDeleteShowOnceTask(dialog_id, messageObject.getId());
@@ -19043,7 +19066,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                                 return 5;
                             }
                         }
-                        if (messageObject.messageOwner.ttl <= 0) {
+                        if (messageObject.messageOwner.ttl <= 0 || SharedConfig.allowSaveToGalleryEverywhere) {
                             return 4;
                         }
                     }
@@ -19101,7 +19124,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             if (selectedMessagesIds[index].indexOfKey(messageObject.getId()) >= 0) {
                 selectedMessagesIds[index].remove(messageObject.getId());
                 if (!isReport()) {
-                    if ((messageObject.type == MessageObject.TYPE_TEXT || messageObject.isAnimatedEmoji() || messageObject.caption != null) && !(messageObject.messageOwner != null && messageObject.messageOwner.noforwards)) {
+                    boolean chatNoForwards = getMessagesController().isChatNoForwards(currentChat);
+                    boolean messageNoforwards = messageObject.messageOwner != null && messageObject.messageOwner.noforwards;
+                    if ((messageObject.type == MessageObject.TYPE_TEXT || messageObject.isAnimatedEmoji() || messageObject.caption != null) && (SharedConfig.allowCopyEverywhere || (!messageNoforwards && !chatNoForwards))) {
                         selectedMessagesCanCopyIds[index].remove(messageObject.getId());
                     }
                     if (!messageObject.isAnimatedEmoji() && (messageObject.isSticker() || messageObject.isAnimatedSticker()) && MessageObject.isStickerHasSet(messageObject.getDocument())) {
@@ -19119,9 +19144,15 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     } else {
                         canForwardMessagesCount--;
                     }
-                    if (messageObject.isMusic() && !noforwards) {
+                    int ttl = messageObject.messageOwner != null ? messageObject.messageOwner.ttl : 0;
+                    TLRPC.MessageMedia media = MessageObject.getMedia(messageObject.messageOwner);
+                    if (media != null && media.ttl_seconds != 0) {
+                        ttl = Math.max(ttl, media.ttl_seconds);
+                    }
+                    boolean saveBypass = SharedConfig.allowSaveToGalleryEverywhere || (SharedConfig.keepDisappearingMedia && ttl != 0);
+                    if (messageObject.isMusic() && (!noforwards || saveBypass)) {
                         canSaveMusicCount--;
-                    } else if (messageObject.isDocument() && !noforwards) {
+                    } else if (messageObject.isDocument() && (!noforwards || saveBypass)) {
                         canSaveDocumentsCount--;
                     } else {
                         cantSaveMessagesCount--;
@@ -19138,7 +19169,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 }
                 selectedMessagesIds[index].put(messageObject.getId(), messageObject);
                 if (!isReport()) {
-                    if ((messageObject.type == MessageObject.TYPE_TEXT || messageObject.isAnimatedEmoji() || messageObject.caption != null) && !(messageObject.messageOwner != null && messageObject.messageOwner.noforwards)) {
+                    boolean chatNoForwards = getMessagesController().isChatNoForwards(currentChat);
+                    boolean messageNoforwards = messageObject.messageOwner != null && messageObject.messageOwner.noforwards;
+                    if ((messageObject.type == MessageObject.TYPE_TEXT || messageObject.isAnimatedEmoji() || messageObject.caption != null) && (SharedConfig.allowCopyEverywhere || (!messageNoforwards && !chatNoForwards))) {
                         selectedMessagesCanCopyIds[index].put(messageObject.getId(), messageObject);
                     }
                     if (!messageObject.isAnimatedEmoji() && (messageObject.isSticker() || messageObject.isAnimatedSticker()) && MessageObject.isStickerHasSet(messageObject.getDocument())) {
@@ -19150,15 +19183,20 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     if (!messageObject.canDeleteMessage(chatMode == MODE_SCHEDULED, currentChat)) {
                         cantDeleteMessagesCount++;
                     }
-                    boolean noforwards = getMessagesController().isChatNoForwards(currentChat);
-                    if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || noforwards) {
+                    if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || chatNoForwards) {
                         cantForwardMessagesCount++;
                     } else {
                         canForwardMessagesCount++;
                     }
-                    if (messageObject.isMusic() && !noforwards) {
+                    int ttl = messageObject.messageOwner != null ? messageObject.messageOwner.ttl : 0;
+                    TLRPC.MessageMedia media = MessageObject.getMedia(messageObject.messageOwner);
+                    if (media != null && media.ttl_seconds != 0) {
+                        ttl = Math.max(ttl, media.ttl_seconds);
+                    }
+                    boolean saveBypass = SharedConfig.allowSaveToGalleryEverywhere || (SharedConfig.keepDisappearingMedia && ttl != 0);
+                    if (messageObject.isMusic() && (!chatNoForwards || saveBypass)) {
                         canSaveMusicCount++;
-                    } else if (messageObject.isDocument() && !messageObject.isRoundOnce() && !messageObject.isVoiceOnce() && !noforwards) {
+                    } else if (messageObject.isDocument() && !messageObject.isRoundOnce() && !messageObject.isVoiceOnce() && (!chatNoForwards || saveBypass)) {
                         canSaveDocumentsCount++;
                     } else {
                         cantSaveMessagesCount++;
@@ -19252,7 +19290,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 int copyVisible = View.GONE, starVisible = View.GONE, newCopyVisible = View.GONE, newStarVisible = View.GONE;
                 if (copyItem != null) {
                     copyVisible = copyItem.getVisibility();
-                    copyItem.setVisibility(!noforwards && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
+                    boolean allowCopySelection = (SharedConfig.allowCopyEverywhere || !noforwards) && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0;
+                    copyItem.setVisibility(allowCopySelection ? View.VISIBLE : View.GONE);
                     newCopyVisible = copyItem.getVisibility();
                 }
                 if (starItem != null) {
@@ -35517,7 +35556,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 }
                 final int finalTimestamp = timestamp;
                 boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
-                builder.setItems(noforwards ? new CharSequence[] {LocaleController.getString(R.string.Open)} : new CharSequence[]{LocaleController.getString(R.string.Open), LocaleController.getString(R.string.Copy)}, (dialog, which) -> {
+                boolean copyEnabled = SharedConfig.allowCopyEverywhere || !noforwards;
+                CharSequence[] items = copyEnabled ? new CharSequence[]{LocaleController.getString(R.string.Open), LocaleController.getString(R.string.Copy)} : new CharSequence[]{LocaleController.getString(R.string.Open)};
+                builder.setItems(items, (dialog, which) -> {
                     if (which == 0) {
                         if (str.startsWith("video?")) {
                             didPressMessageUrl(url, false, messageObject, cell);
@@ -35525,7 +35566,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                             logSponsoredClicked(messageObject, false, false);
                             openClickableLink(url, str, false, cell, messageObject, true);
                         }
-                    } else if (which == 1) {
+                    } else if (which == 1 && copyEnabled) {
                         if (str.startsWith("video?") && messageObject != null && !messageObject.scheduled) {
                             MessageObject messageObject1 = messageObject;
                             boolean isMedia = messageObject.isVideo() || messageObject.isRoundVideo() || messageObject.isVoice() || messageObject.isMusic();
@@ -44153,8 +44194,21 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             deleteIconRes = R.drawable.msg_delete;
         }
 
+        int ttlSeconds = 0;
+        if (selectedObject != null && selectedObject.messageOwner != null) {
+            ttlSeconds = selectedObject.messageOwner.ttl;
+            TLRPC.MessageMedia media = MessageObject.getMedia(selectedObject.messageOwner);
+            if (media != null && media.ttl_seconds != 0) {
+                ttlSeconds = Math.max(ttlSeconds, media.ttl_seconds);
+            }
+        }
+        boolean messageHasTtl = ttlSeconds != 0;
+        boolean copyAllowed = SharedConfig.allowCopyEverywhere || !noforwardsOrPaidMedia;
+        boolean saveRestrictedByNoForwards = noforwardsOrPaidMedia && !SharedConfig.allowSaveToGalleryEverywhere;
+        boolean saveAllowed = !saveRestrictedByNoForwards || (SharedConfig.keepDisappearingMedia && messageHasTtl);
+
         if (type == -1) {
-            if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && !noforwardsOrPaidMedia && !message.isExpiredStory()) {
+            if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && copyAllowed && !message.isExpiredStory()) {
                 items.add(LocaleController.getString(R.string.Copy));
                 options.add(OPTION_COPY);
                 icons.add(R.drawable.msg_copy);
@@ -44273,7 +44327,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     options.add(OPTION_REPLY);
                     icons.add(R.drawable.menu_reply);
                 }
-                if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isDice() || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && !noforwardsOrPaidMedia && !selectedObject.sponsoredCanReport) {
+                if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isDice() || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && copyAllowed && !selectedObject.sponsoredCanReport) {
                     items.add(LocaleController.getString(R.string.Copy));
                     options.add(OPTION_COPY);
                     icons.add(R.drawable.msg_copy);
@@ -44330,29 +44384,31 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                                     icons.add(R.drawable.msg_addbot);
                                 }
                             }
-                        } else if (selectedObject.isMusic() && !noforwardsOrPaidMedia && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                        } else if (selectedObject.isMusic() && saveAllowed && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
                             items.add(LocaleController.getString(R.string.SaveToMusic));
                             options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                             icons.add(R.drawable.msg_download);
-                        } else if (selectedObject.isDocument() && !noforwardsOrPaidMedia && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                        } else if (selectedObject.isDocument() && saveAllowed && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
                             items.add(LocaleController.getString(R.string.SaveToDownloads));
                             options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                             icons.add(R.drawable.msg_download);
                         }
                     }
-                } else if (type == 3 && !noforwardsOrPaidMedia) {
+                } else if (type == 3 && (!noforwardsOrPaidMedia || SharedConfig.allowSaveToGalleryEverywhere)) {
                     if (selectedObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && MessageObject.isNewGifDocument(selectedObject.messageOwner.media.webpage.document)) {
                         items.add(LocaleController.getString(R.string.SaveToGIFs));
                         options.add(OPTION_ADD_TO_GIFS);
                         icons.add(R.drawable.msg_gif);
                     }
                 } else if (type == 4) {
-                    if (!noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia()) {
+                    boolean blurred = selectedObject.needDrawBluredPreview();
+                    boolean allowSave = !selectedObject.hasRevealedExtendedMedia() && (!blurred || SharedConfig.allowSaveToGalleryEverywhere || SharedConfig.keepDisappearingMedia) && saveAllowed;
+                    if (allowSave) {
                         if (selectedObject.isVideo()) {
-                            if (!selectedObject.needDrawBluredPreview()) {
-                                items.add(LocaleController.getString(R.string.SaveToGallery));
-                                options.add(OPTION_SAVE_TO_GALLERY);
-                                icons.add(R.drawable.msg_gallery);
+                            items.add(LocaleController.getString(R.string.SaveToGallery));
+                            options.add(OPTION_SAVE_TO_GALLERY);
+                            icons.add(R.drawable.msg_gallery);
+                            if (!noforwardsOrPaidMedia) {
                                 items.add(LocaleController.getString(R.string.ShareFile));
                                 options.add(OPTION_SHARE);
                                 icons.add(R.drawable.msg_shareout);
@@ -44361,9 +44417,11 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                             items.add(LocaleController.getString(R.string.SaveToMusic));
                             options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                             icons.add(R.drawable.msg_download);
-                            items.add(LocaleController.getString(R.string.ShareFile));
-                            options.add(OPTION_SHARE);
-                            icons.add(R.drawable.msg_shareout);
+                            if (!noforwardsOrPaidMedia) {
+                                items.add(LocaleController.getString(R.string.ShareFile));
+                                options.add(OPTION_SHARE);
+                                icons.add(R.drawable.msg_shareout);
+                            }
                         } else if (selectedObject.getDocument() != null && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
                             if (MessageObject.isNewGifDocument(selectedObject.getDocument())) {
                                 items.add(LocaleController.getString(R.string.SaveToGIFs));
@@ -44373,52 +44431,60 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                             items.add(LocaleController.getString(R.string.SaveToDownloads));
                             options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                             icons.add(R.drawable.msg_download);
-                            items.add(LocaleController.getString(R.string.ShareFile));
-                            options.add(OPTION_SHARE);
-                            icons.add(R.drawable.msg_shareout);
-                        } else {
-                            if (!selectedObject.needDrawBluredPreview()) {
-                                items.add(LocaleController.getString(R.string.SaveToGallery));
-                                options.add(OPTION_SAVE_TO_GALLERY);
-                                icons.add(R.drawable.msg_gallery);
+                            if (!noforwardsOrPaidMedia) {
+                                items.add(LocaleController.getString(R.string.ShareFile));
+                                options.add(OPTION_SHARE);
+                                icons.add(R.drawable.msg_shareout);
                             }
+                        } else {
+                            items.add(LocaleController.getString(R.string.SaveToGallery));
+                            options.add(OPTION_SAVE_TO_GALLERY);
+                            icons.add(R.drawable.msg_gallery);
                         }
                     }
                 } else if (type == 5) {
                     items.add(LocaleController.getString(R.string.ApplyLocalizationFile));
                     options.add(OPTION_APPLY_LOCALIZATION_OR_THEME);
                     icons.add(R.drawable.msg_language);
-                    if (!noforwardsOrPaidMedia && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                    if ((!noforwardsOrPaidMedia || SharedConfig.allowSaveToGalleryEverywhere) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
                         items.add(LocaleController.getString(R.string.SaveToDownloads));
                         options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                         icons.add(R.drawable.msg_download);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
                     }
                 } else if (type == 10) {
                     items.add(LocaleController.getString(R.string.ApplyThemeFile));
                     options.add(OPTION_APPLY_LOCALIZATION_OR_THEME);
                     icons.add(R.drawable.msg_theme);
-                    if (!noforwardsOrPaidMedia && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                    if ((!noforwardsOrPaidMedia || SharedConfig.allowSaveToGalleryEverywhere) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
                         items.add(LocaleController.getString(R.string.SaveToDownloads));
                         options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                         icons.add(R.drawable.msg_download);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
                     }
-                } else if (type == 6 && !noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia()) {
-                    if (!selectedObject.needDrawBluredPreview() && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                } else if (type == 6) {
+                    boolean blurred = selectedObject.needDrawBluredPreview();
+                    boolean allowSave = !selectedObject.hasRevealedExtendedMedia() && (!blurred || SharedConfig.allowSaveToGalleryEverywhere || SharedConfig.keepDisappearingMedia) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce() && saveAllowed;
+                    if (allowSave) {
                         items.add(LocaleController.getString(R.string.SaveToGallery));
                         options.add(OPTION_SAVE_TO_GALLERY2);
                         icons.add(R.drawable.msg_gallery);
                         items.add(LocaleController.getString(R.string.SaveToDownloads));
                         options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
                         icons.add(R.drawable.msg_download);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
                     }
                 } else if (type == 7) {
                     if (selectedObject.isMask()) {
@@ -44542,7 +44608,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     options.add(OPTION_REPLY);
                     icons.add(R.drawable.menu_reply);
                 }
-                if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && !noforwardsOrPaidMedia) {
+                if ((selectedObject.type == MessageObject.TYPE_TEXT || selectedObject.isAnimatedEmoji() || selectedObject.isAnimatedEmojiStickers() || getMessageCaption(selectedObject, selectedObjectGroup) != null) && copyAllowed) {
                     items.add(LocaleController.getString(R.string.Copy));
                     options.add(OPTION_COPY);
                     icons.add(R.drawable.msg_copy);
@@ -44561,41 +44627,87 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     options.add(OPTION_VIEW_IN_TOPIC);
                     icons.add(R.drawable.msg_viewintopic);
                 }
-                if (type == 4 && !noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia() && !selectedObject.needDrawBluredPreview()) {
-                    if (selectedObject.isVideo()) {
-                        items.add(LocaleController.getString(R.string.SaveToGallery));
-                        options.add(OPTION_SAVE_TO_GALLERY);
-                        icons.add(R.drawable.msg_gallery);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
-                    } else if (selectedObject.isMusic() && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
-                        items.add(LocaleController.getString(R.string.SaveToMusic));
-                        options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
-                        icons.add(R.drawable.msg_download);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
-                    } else if (!selectedObject.isVideo() && selectedObject.getDocument() != null && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
-                        items.add(LocaleController.getString(R.string.SaveToDownloads));
-                        options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
-                        icons.add(R.drawable.msg_download);
-                        items.add(LocaleController.getString(R.string.ShareFile));
-                        options.add(OPTION_SHARE);
-                        icons.add(R.drawable.msg_shareout);
-                    } else {
-                        items.add(LocaleController.getString(R.string.SaveToGallery));
-                        options.add(OPTION_SAVE_TO_GALLERY);
-                        icons.add(R.drawable.msg_gallery);
+                if (type == 4) {
+                    boolean blurred = selectedObject.needDrawBluredPreview();
+                    boolean allowSave = !selectedObject.hasRevealedExtendedMedia() && (!blurred || SharedConfig.allowSaveToGalleryEverywhere || SharedConfig.keepDisappearingMedia) && saveAllowed;
+                    if (allowSave) {
+                        if (selectedObject.isVideo()) {
+                            items.add(LocaleController.getString(R.string.SaveToGallery));
+                            options.add(OPTION_SAVE_TO_GALLERY);
+                            icons.add(R.drawable.msg_gallery);
+                            if (!noforwardsOrPaidMedia) {
+                                items.add(LocaleController.getString(R.string.ShareFile));
+                                options.add(OPTION_SHARE);
+                                icons.add(R.drawable.msg_shareout);
+                            }
+                        } else if (selectedObject.isMusic() && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                            items.add(LocaleController.getString(R.string.SaveToMusic));
+                            options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                            icons.add(R.drawable.msg_download);
+                            if (!noforwardsOrPaidMedia) {
+                                items.add(LocaleController.getString(R.string.ShareFile));
+                                options.add(OPTION_SHARE);
+                                icons.add(R.drawable.msg_shareout);
+                            }
+                        } else if (!selectedObject.isVideo() && selectedObject.getDocument() != null && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                            items.add(LocaleController.getString(R.string.SaveToDownloads));
+                            options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                            icons.add(R.drawable.msg_download);
+                            if (!noforwardsOrPaidMedia) {
+                                items.add(LocaleController.getString(R.string.ShareFile));
+                                options.add(OPTION_SHARE);
+                                icons.add(R.drawable.msg_shareout);
+                            }
+                        } else {
+                            items.add(LocaleController.getString(R.string.SaveToGallery));
+                            options.add(OPTION_SAVE_TO_GALLERY);
+                            icons.add(R.drawable.msg_gallery);
+                        }
                     }
                 } else if (type == 5) {
                     items.add(LocaleController.getString(R.string.ApplyLocalizationFile));
                     options.add(OPTION_APPLY_LOCALIZATION_OR_THEME);
                     icons.add(R.drawable.msg_language);
+                    if ((!noforwardsOrPaidMedia || SharedConfig.allowSaveToGalleryEverywhere) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                        items.add(LocaleController.getString(R.string.SaveToDownloads));
+                        options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                        icons.add(R.drawable.msg_download);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
+                    }
                 } else if (type == 10) {
                     items.add(LocaleController.getString(R.string.ApplyThemeFile));
                     options.add(OPTION_APPLY_LOCALIZATION_OR_THEME);
                     icons.add(R.drawable.msg_theme);
+                    if ((!noforwardsOrPaidMedia || SharedConfig.allowSaveToGalleryEverywhere) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce()) {
+                        items.add(LocaleController.getString(R.string.SaveToDownloads));
+                        options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                        icons.add(R.drawable.msg_download);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
+                    }
+                } else if (type == 6) {
+                    boolean blurred = selectedObject.needDrawBluredPreview();
+                    boolean allowSave = !selectedObject.hasRevealedExtendedMedia() && (!blurred || SharedConfig.allowSaveToGalleryEverywhere || SharedConfig.keepDisappearingMedia) && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce() && saveAllowed;
+                    if (allowSave) {
+                        items.add(LocaleController.getString(R.string.SaveToGallery));
+                        options.add(OPTION_SAVE_TO_GALLERY2);
+                        icons.add(R.drawable.msg_gallery);
+                        items.add(LocaleController.getString(R.string.SaveToDownloads));
+                        options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                        icons.add(R.drawable.msg_download);
+                        if (!noforwardsOrPaidMedia) {
+                            items.add(LocaleController.getString(R.string.ShareFile));
+                            options.add(OPTION_SHARE);
+                            icons.add(R.drawable.msg_shareout);
+                        }
+                    }
                 } else if (type == 7) {
                     items.add(LocaleController.getString(R.string.AddToStickers));
                     options.add(OPTION_ADD_TO_STICKERS_OR_MASKS);

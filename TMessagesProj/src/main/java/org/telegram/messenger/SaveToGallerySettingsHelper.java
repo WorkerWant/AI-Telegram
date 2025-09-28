@@ -8,6 +8,8 @@ import android.app.Activity;
 import android.content.SharedPreferences;
 import android.util.LongSparseArray;
 
+import org.telegram.messenger.SharedConfig;
+
 public class SaveToGallerySettingsHelper {
 
     //shared settings
@@ -169,7 +171,8 @@ public class SaveToGallerySettingsHelper {
         private boolean needSave(FilePathDatabase.FileMeta meta, MessageObject messageObject, int currentAccount) {
             LongSparseArray<DialogException> exceptions = UserConfig.getInstance(currentAccount).getSaveGalleryExceptions(type);
             DialogException exception = exceptions.get(meta.dialogId);
-            if (messageObject != null && (messageObject.isOutOwner() || messageObject.isSecretMedia())) {
+            boolean override = SharedConfig.allowSaveToGalleryEverywhere || (SharedConfig.keepDisappearingMedia && messageObject != null && messageObject.isSecretMedia());
+            if (messageObject != null && (messageObject.isOutOwner() || (!override && messageObject.isSecretMedia()))) {
                 return false;
             }
             boolean isVideo = (messageObject != null && messageObject.isVideo()) || meta.messageType == MessageObject.TYPE_VIDEO;

@@ -9744,6 +9744,10 @@
     <string name="AISettings">AI Assistant</string>
     <string name="AISettingsTitle">AI Assistant Settings</string>
     <string name="DeveloperOptions">Developer Options</string>
+    <string name="DeveloperAllowScreenshots">Allow screenshots everywhere</string>
+    <string name="DeveloperAllowSaveMedia">Allow saving media everywhere</string>
+    <string name="DeveloperAllowCopy">Allow copying restricted messages</string>
+    <string name="DeveloperKeepDisappearingMedia">Keep disappearing media</string>
     <string name="AIApiToken">API Token</string>
     <string name="AIApiTokenHint">Enter your OpenAI API key</string>
     <string name="AIResponseSize">Response Size</string>

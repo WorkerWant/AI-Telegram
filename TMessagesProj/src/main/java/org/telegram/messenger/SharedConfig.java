@@ -499,6 +499,9 @@ public class SharedConfig {
                 editor.putBoolean("aiCacheSummaries", aiCacheSummaries);
                 editor.putBoolean("aiTranscribeFallback", aiTranscribeFallback);
                 editor.putBoolean("allowScreenshotsEverywhere", allowScreenshotsEverywhere);
+                editor.putBoolean("allowSaveToGalleryEverywhere", allowSaveToGalleryEverywhere);
+                editor.putBoolean("allowCopyEverywhere", allowCopyEverywhere);
+                editor.putBoolean("keepDisappearingMedia", keepDisappearingMedia);
                 
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("AI Settings saving: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -646,6 +649,9 @@ public class SharedConfig {
             aiCacheSummaries = preferences.getBoolean("aiCacheSummaries", true);
             aiTranscribeFallback = preferences.getBoolean("aiTranscribeFallback", false);
             allowScreenshotsEverywhere = preferences.getBoolean("allowScreenshotsEverywhere", false);
+            allowSaveToGalleryEverywhere = preferences.getBoolean("allowSaveToGalleryEverywhere", false);
+            allowCopyEverywhere = preferences.getBoolean("allowCopyEverywhere", false);
+            keepDisappearingMedia = preferences.getBoolean("keepDisappearingMedia", false);
             
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -1960,6 +1966,9 @@ public class SharedConfig {
     //DEBUG
     public static boolean drawActionBarShadow = true;
     public static boolean allowScreenshotsEverywhere;
+    public static boolean allowSaveToGalleryEverywhere;
+    public static boolean allowCopyEverywhere;
+    public static boolean keepDisappearingMedia;
     
     // AI Settings
     public static boolean aiEnabled;

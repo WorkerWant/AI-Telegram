@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -33,6 +34,9 @@ public class AdvancedSettingsActivity extends BaseFragment {
     private int rowCount;
     private int headerRow;
     private int allowScreenshotsRow;
+    private int allowSaveMediaRow;
+    private int allowCopyRow;
+    private int keepDisappearingRow;
     
 
     @Override
@@ -46,6 +50,9 @@ public class AdvancedSettingsActivity extends BaseFragment {
         rowCount = 0;
         headerRow = rowCount++;
         allowScreenshotsRow = rowCount++;
+        allowSaveMediaRow = rowCount++;
+        allowCopyRow = rowCount++;
+        keepDisappearingRow = rowCount++;
     }
 
     @Override
@@ -84,6 +91,30 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 if (getParentActivity() != null) {
                     getParentActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
                 }
+            } else if (position == allowSaveMediaRow) {
+                SharedConfig.allowSaveToGalleryEverywhere = !SharedConfig.allowSaveToGalleryEverywhere;
+                SharedConfig.saveConfig();
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.allowSaveToGalleryEverywhere);
+                } else if (listAdapter != null) {
+                    listAdapter.notifyItemChanged(allowSaveMediaRow);
+                }
+            } else if (position == allowCopyRow) {
+                SharedConfig.allowCopyEverywhere = !SharedConfig.allowCopyEverywhere;
+                SharedConfig.saveConfig();
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.allowCopyEverywhere);
+                } else if (listAdapter != null) {
+                    listAdapter.notifyItemChanged(allowCopyRow);
+                }
+            } else if (position == keepDisappearingRow) {
+                SharedConfig.keepDisappearingMedia = !SharedConfig.keepDisappearingMedia;
+                SharedConfig.saveConfig();
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.keepDisappearingMedia);
+                } else if (listAdapter != null) {
+                    listAdapter.notifyItemChanged(keepDisappearingRow);
+                }
             }
         });
 
@@ -113,7 +144,15 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 }
                 case 1: {
                     TextCheckCell checkCell = (TextCheckCell) holder.itemView;
-                    checkCell.setTextAndCheck("Allow screenshots everywhere", SharedConfig.allowScreenshotsEverywhere, false);
+                    if (position == allowScreenshotsRow) {
+                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperAllowScreenshots), SharedConfig.allowScreenshotsEverywhere, true);
+                    } else if (position == allowSaveMediaRow) {
+                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperAllowSaveMedia), SharedConfig.allowSaveToGalleryEverywhere, true);
+                    } else if (position == allowCopyRow) {
+                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperAllowCopy), SharedConfig.allowCopyEverywhere, true);
+                    } else if (position == keepDisappearingRow) {
+                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperKeepDisappearingMedia), SharedConfig.keepDisappearingMedia, false);
+                    }
                     break;
                 }
             }
@@ -122,7 +161,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == allowScreenshotsRow;
+            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow;
         }
 
         @NonNull
@@ -150,7 +189,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         public int getItemViewType(int position) {
             if (position == headerRow) {
                 return 0;
-            } else if (position == allowScreenshotsRow) {
+            } else if (position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow) {
                 return 1;
             }
             return 2;

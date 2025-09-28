@@ -4996,7 +4996,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
                     if (msgs.size() <= 1) {
                         File f = null;
-                        final boolean isVideo;
+                        boolean isVideoLocal;
                         if (currentMessageObject != null) {
                             if (MessageObject.getMedia(currentMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaWebPage && MessageObject.getMedia(currentMessageObject.messageOwner).webpage != null && MessageObject.getMedia(currentMessageObject.messageOwner).webpage.document == null) {
                                 TLObject fileLocation = getFileLocation(currentIndex, null);
@@ -5007,7 +5007,19 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             } else {
                                 f = FileLoader.getInstance(currentAccount).getPathToMessage(currentMessageObject.messageOwner);
                             }
-                            isVideo = currentMessageObject.isVideo();
+                            isVideoLocal = currentMessageObject.isVideo();
+                        } else if (currentSecureDocument != null) {
+                            f = FileLoader.getInstance(currentAccount).getPathToAttach(currentSecureDocument, false);
+                            if (f == null || !f.exists()) {
+                                f = FileLoader.getInstance(currentAccount).getPathToAttach(currentSecureDocument, true);
+                            }
+                            isVideoLocal = false;
+                            if (f != null) {
+                                String name = f.getName().toLowerCase();
+                                if (name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".mkv") || name.endsWith(".webm")) {
+                                    isVideoLocal = true;
+                                }
+                            }
                         } else if (currentFileLocationVideo != null) {
                             String ext = getFileLocationExt(currentFileLocationVideo);
                             f = FileLoader.getInstance(currentAccount).getPathToAttach(getFileLocation(currentFileLocationVideo), ext, avatarsDialogId != 0 || isEvent);
@@ -5017,19 +5029,22 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             if (ext != null) {
                                 ext = ext.toLowerCase();
                             }
-                            isVideo = ext != null && (ext.equals("webm") || ext.equals("mp4") || ext.equals("gif"));
+                            isVideoLocal = ext != null && (ext.equals("webm") || ext.equals("mp4") || ext.equals("gif"));
                         } else if (pageBlocksAdapter != null) {
                             f = pageBlocksAdapter.getFile(currentIndex);
-                            isVideo = pageBlocksAdapter.isVideo(currentIndex);
+                            isVideoLocal = pageBlocksAdapter.isVideo(currentIndex);
                         } else {
-                            isVideo = false;
+                            isVideoLocal = false;
                         }
                         if (f != null && !f.exists()) {
                             f = new File(FileLoader.getDirectory(FileLoader.MEDIA_DIR_CACHE), f.getName());
                         }
 
+                        final boolean isVideo = isVideoLocal;
                         if (f != null && f.exists()) {
-                            MediaController.saveFile(f.toString(), parentActivity, isVideo ? 1 : 0, null, null, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, isVideo, 0xf9222222, 0xffffffff).show());
+                            SaveInfo saveInfo = buildSaveInfo(currentMessageObject, f, isVideo);
+                            String nameOverride = isVideo ? AndroidUtilities.generateFileName(1, null) : AndroidUtilities.generateFileName(0, saveInfo.ext);
+                            MediaController.saveFile(f.toString(), parentActivity, isVideo ? 1 : 0, nameOverride, saveInfo.mime, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, isVideo, 0xf9222222, 0xffffffff).show());
                         } else {
                             showDownloadAlert();
                         }
@@ -5060,7 +5075,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                                     boolean isThisVideo = currentMessageObject.isVideo();
 
                                     if (f != null && f.exists()) {
-                                        MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, null, null, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, isThisVideo, 0xf9222222, 0xffffffff).show());
+                                        SaveInfo saveInfo = buildSaveInfo(currentMessageObject, f, isThisVideo);
+                                        String nameOverride = isThisVideo ? AndroidUtilities.generateFileName(1, null) : AndroidUtilities.generateFileName(0, saveInfo.ext);
+                                        MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, nameOverride, saveInfo.mime, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, isThisVideo, 0xf9222222, 0xffffffff).show());
                                     } else {
                                         showDownloadAlert();
                                     }
@@ -5090,7 +5107,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
                                         if (f != null && f.exists()) {
                                             count[0]++;
-                                            MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, null, null, uri -> AndroidUtilities.runOnUIThread(bulletin));
+                                            SaveInfo saveInfo = buildSaveInfo(msg, f, isThisVideo);
+                                            String nameOverride = isThisVideo ? AndroidUtilities.generateFileName(1, null) : AndroidUtilities.generateFileName(0, saveInfo.ext);
+                                            MediaController.saveFile(f.toString(), parentActivity, isThisVideo ? 1 : 0, nameOverride, saveInfo.mime, uri -> AndroidUtilities.runOnUIThread(bulletin));
                                         }
                                     }
                                 })
@@ -5823,7 +5842,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 f = FileLoader.getInstance(currentAccount).getPathToAttach(document, null, true, true);
             }
             if (f != null && f.exists()) {
-                MediaController.saveFile(f.toString(), parentActivity, 1, null, null, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, true, 0xf9222222, 0xffffffff).show());
+                SaveInfo saveInfo = buildSaveInfo(messageObject, f, true);
+                MediaController.saveFile(f.toString(), parentActivity, 1, AndroidUtilities.generateFileName(1, null), saveInfo.mime, uri -> BulletinFactory.createSaveToGalleryBulletin(containerView, true, 0xf9222222, 0xffffffff).show());
             } else {
                 ArrayList<MessageObject> messageObjects = new ArrayList<>();
                 messageObject.qualityToSave = document;
@@ -14544,24 +14564,44 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             if (DialogObject.isEncryptedDialog(currentDialogId) && !isEmbedVideo || noforwards) {
                 setItemVisible(sendItem, false, false);
             }
-            if (isEmbedVideo || newMessageObject.messageOwner.ttl != 0 && newMessageObject.messageOwner.ttl < 60 * 60 || noforwards) {
+            int ttlSeconds = newMessageObject.messageOwner != null ? newMessageObject.messageOwner.ttl : 0;
+            TLRPC.MessageMedia media = MessageObject.getMedia(newMessageObject.messageOwner);
+            if (media != null && media.ttl_seconds != 0) {
+                ttlSeconds = Math.max(ttlSeconds, media.ttl_seconds);
+            }
+            boolean ttlRestricted = ttlSeconds != 0 && ttlSeconds < 60 * 60;
+            boolean isDisappearing = newMessageObject.isSecretMedia();
+            boolean allowDisappearingSave = SharedConfig.keepDisappearingMedia && isDisappearing;
+            boolean shareBlocked = isEmbedVideo || ttlRestricted || noforwards;
+            boolean saveBlocked = isEmbedVideo || ((ttlRestricted || noforwards) && !SharedConfig.allowSaveToGalleryEverywhere && !allowDisappearingSave);
+            if (shareBlocked) {
                 allowShare = false;
-                galleryButton.setVisibility(View.GONE);
-                galleryGap.setVisibility(View.GONE);
                 menuItem.hideSubItem(gallery_menu_share);
                 setItemVisible(editItem, false, animated);
             } else {
                 allowShare = true;
+                menuItem.showSubItem(gallery_menu_share);
+            }
+            if (saveBlocked) {
+                galleryButton.setVisibility(View.GONE);
+                galleryGap.setVisibility(View.GONE);
+            } else {
                 galleryButton.setVisibility(View.VISIBLE);
                 galleryGap.setVisibility(View.VISIBLE);
-                menuItem.showSubItem(gallery_menu_share);
             }
             groupedPhotosListView.fillList();
         } else if (!secureDocuments.isEmpty()) {
+            boolean allowSave = SharedConfig.allowSaveToGalleryEverywhere || SharedConfig.keepDisappearingMedia;
             allowShare = false;
             menuItem.showSubItem(gallery_menu_delete);
-            galleryButton.setVisibility(View.GONE);
-            galleryGap.setVisibility(View.GONE);
+            menuItem.hideSubItem(gallery_menu_share);
+            if (allowSave) {
+                galleryButton.setVisibility(View.VISIBLE);
+                galleryGap.setVisibility(View.VISIBLE);
+            } else {
+                galleryButton.setVisibility(View.GONE);
+                galleryGap.setVisibility(View.GONE);
+            }
             menuItem.hideSubItem(gallery_menu_translate);
             menuItem.hideSubItem(gallery_menu_hide_translation);
             if (countView != null) {
@@ -14626,7 +14666,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 title = getString(R.string.AttachPhoto);
             }
             boolean noforwards = avatarsDialogId != 0 && MessagesController.getInstance(currentAccount).isChatNoForwards(-avatarsDialogId);
-            if (noforwards) {
+            boolean saveBlocked = noforwards && !SharedConfig.allowSaveToGalleryEverywhere;
+            if (saveBlocked) {
                 galleryButton.setVisibility(View.GONE);
                 galleryGap.setVisibility(View.GONE);
             } else {
@@ -14634,7 +14675,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 galleryGap.setVisibility(View.VISIBLE);
             }
             allowShare = !noforwards;
-            menuItem.showSubItem(gallery_menu_share);
+            if (allowShare) {
+                menuItem.showSubItem(gallery_menu_share);
+            } else {
+                menuItem.hideSubItem(gallery_menu_share);
+            }
             menuItem.checkHideMenuItem();
             groupedPhotosListView.fillList();
             editing = needCaptionLayout && (sendPhotoType == 0 || sendPhotoType == 2 || sendPhotoType == SELECT_TYPE_NO_SELECT);
@@ -22698,6 +22743,93 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
         }
         return 0;
+    }
+
+    private static class SaveInfo {
+        final String mime;
+        final String ext;
+
+        SaveInfo(String mime, String ext) {
+            this.mime = mime;
+            this.ext = ext;
+        }
+    }
+
+    private SaveInfo buildSaveInfo(MessageObject messageObject, File file, boolean isVideo) {
+        String mime = null;
+        String ext = null;
+
+        if (messageObject != null) {
+            mime = messageObject.getMimeType();
+            if (messageObject.getDocument() != null) {
+                String docExt = FileLoader.getDocumentExtension(messageObject.getDocument());
+                if (!TextUtils.isEmpty(docExt)) {
+                    ext = docExt.startsWith(".") ? docExt.substring(1) : docExt;
+                }
+            }
+            if (TextUtils.isEmpty(ext)) {
+                if (messageObject.isGif()) {
+                    ext = "gif";
+                } else if (messageObject.isPhoto()) {
+                    ext = "jpg";
+                } else if (messageObject.getDocument() != null) {
+                    String fileName = FileLoader.getDocumentFileName(messageObject.getDocument());
+                    int dot = fileName.lastIndexOf('.');
+                    if (dot > 0 && dot + 1 < fileName.length()) {
+                        ext = fileName.substring(dot + 1);
+                    }
+                }
+            }
+        }
+
+        if (TextUtils.isEmpty(ext) && file != null) {
+            String name = file.getName();
+            int lastDot = name.lastIndexOf('.');
+            if (lastDot != -1) {
+                String candidate = name.substring(lastDot + 1);
+                if ("enc".equalsIgnoreCase(candidate)) {
+                    int prevDot = name.lastIndexOf('.', lastDot - 1);
+                    if (prevDot != -1) {
+                        candidate = name.substring(prevDot + 1, lastDot);
+                    }
+                }
+                if (!TextUtils.isEmpty(candidate)) {
+                    ext = candidate;
+                }
+            }
+        }
+
+        if (!TextUtils.isEmpty(mime)) {
+            String byMime = FileLoader.getExtensionByMimeType(mime);
+            if (!TextUtils.isEmpty(byMime)) {
+                byMime = byMime.startsWith(".") ? byMime.substring(1) : byMime;
+                if (TextUtils.isEmpty(ext) || "enc".equalsIgnoreCase(ext)) {
+                    ext = byMime;
+                }
+            }
+        }
+
+        if (!TextUtils.isEmpty(ext) && ext.startsWith(".")) {
+            ext = ext.substring(1);
+        }
+
+        if (TextUtils.isEmpty(ext)) {
+            ext = isVideo ? "mp4" : "jpg";
+        }
+
+        if (TextUtils.isEmpty(mime)) {
+            if ("gif".equalsIgnoreCase(ext)) {
+                mime = "image/gif";
+            } else if ("png".equalsIgnoreCase(ext)) {
+                mime = "image/png";
+            } else if ("webp".equalsIgnoreCase(ext)) {
+                mime = "image/webp";
+            } else {
+                mime = isVideo ? "video/mp4" : "image/jpeg";
+            }
+        }
+
+        return new SaveInfo(mime, ext);
     }
 
     private ChromecastMediaVariations getCurrentChromecastMedia() {
