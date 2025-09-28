@@ -498,6 +498,7 @@ public class SharedConfig {
                 editor.putInt("aiVoiceResponseSize", aiVoiceResponseSize);
                 editor.putBoolean("aiCacheSummaries", aiCacheSummaries);
                 editor.putBoolean("aiTranscribeFallback", aiTranscribeFallback);
+                editor.putBoolean("allowScreenshotsEverywhere", allowScreenshotsEverywhere);
                 
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("AI Settings saving: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -644,6 +645,7 @@ public class SharedConfig {
             aiVoiceResponseSize = preferences.getInt("aiVoiceResponseSize", 1);
             aiCacheSummaries = preferences.getBoolean("aiCacheSummaries", true);
             aiTranscribeFallback = preferences.getBoolean("aiTranscribeFallback", false);
+            allowScreenshotsEverywhere = preferences.getBoolean("allowScreenshotsEverywhere", false);
             
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -1957,6 +1959,7 @@ public class SharedConfig {
 
     //DEBUG
     public static boolean drawActionBarShadow = true;
+    public static boolean allowScreenshotsEverywhere;
     
     // AI Settings
     public static boolean aiEnabled;
