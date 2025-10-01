@@ -259,6 +259,7 @@ public class UserConfig extends BaseController {
             TLRPC.User oldUser = currentUser;
             currentUser = user;
             clientUserId = user.id;
+            SharedConfig.onLocalPremiumUserUpdated(currentAccount, user);
             checkPremiumSelf(oldUser, user);
         }
     }

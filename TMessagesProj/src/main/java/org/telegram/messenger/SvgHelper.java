@@ -220,12 +220,7 @@ public class SvgHelper {
                 int index = drawInBackground ? 1 + threadIndex : 0;
                 if (placeholderMatrix[index] != null) {
                     placeholderMatrix[index].reset();
-                    if (drawInBackground) {
-                        placeholderMatrix[index].postTranslate(-offset + totalTranslation - x, 0);
-                    } else {
-                        placeholderMatrix[index].postTranslate(-offset + totalTranslation - x, 0);
-                    }
-
+                    placeholderMatrix[index].postTranslate(-offset + totalTranslation - x, 0);
                     placeholderMatrix[index].postScale(1.0f / scale, 1.0f / scale);
                     placeholderGradient[index].setLocalMatrix(placeholderMatrix[index]);
 

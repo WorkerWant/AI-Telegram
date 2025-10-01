@@ -3687,17 +3687,15 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             listAdapter.notifyDataSetChanged();
             if (searchIsVisible) {
                 if (lastOffset == Integer.MAX_VALUE) {
-                    ((LinearLayoutManager) searchGridView.getLayoutManager()).scrollToPositionWithOffset(0, -searchGridView.getPaddingTop());
+                    ((LinearLayoutManager) searchGridView.getLayoutManager())
+                        .scrollToPositionWithOffset(0, -searchGridView.getPaddingTop());
                 } else {
-                    ((LinearLayoutManager) searchGridView.getLayoutManager()).scrollToPositionWithOffset(0, lastOffset - searchGridView.getPaddingTop());
+                    ((LinearLayoutManager) searchGridView.getLayoutManager())
+                        .scrollToPositionWithOffset(0, lastOffset - searchGridView.getPaddingTop());
                 }
                 searchAdapter.searchDialogs(searchView.searchEditText.getText().toString());
             } else {
-                if (lastOffset == Integer.MAX_VALUE) {
-                    layoutManager.scrollToPositionWithOffset(0, 0);
-                } else {
-                    layoutManager.scrollToPositionWithOffset(0, 0);
-                }
+                layoutManager.scrollToPositionWithOffset(0, 0);
             }
         }
     }

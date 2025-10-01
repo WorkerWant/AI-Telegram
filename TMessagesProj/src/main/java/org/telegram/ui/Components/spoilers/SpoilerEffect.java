@@ -134,15 +134,9 @@ public class SpoilerEffect extends Drawable {
     public SpoilerEffect() {
         for (int i = 0; i < ALPHAS.length; i++) {
             particlePaints[i] = new Paint();
-            if (i == 0) {
-                particlePaints[i].setStrokeWidth(AndroidUtilities.dp(1.4f));
-                particlePaints[i].setStyle(Paint.Style.STROKE);
-                particlePaints[i].setStrokeCap(Paint.Cap.ROUND);
-            } else {
-                particlePaints[i].setStrokeWidth(AndroidUtilities.dp(1.2f));
-                particlePaints[i].setStyle(Paint.Style.STROKE);
-                particlePaints[i].setStrokeCap(Paint.Cap.ROUND);
-            }
+            particlePaints[i].setStrokeWidth(AndroidUtilities.dp(i == 0 ? 1.4f : 1.2f));
+            particlePaints[i].setStyle(Paint.Style.STROKE);
+            particlePaints[i].setStrokeCap(Paint.Cap.ROUND);
         }
 
         isLowDevice = SharedConfig.getDevicePerformanceClass() == SharedConfig.PERFORMANCE_CLASS_LOW;

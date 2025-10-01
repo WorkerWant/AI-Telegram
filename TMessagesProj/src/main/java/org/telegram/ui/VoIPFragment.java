@@ -2749,15 +2749,7 @@ public class VoIPFragment implements
             isVideoAvailable = service.isVideoAvailable();
         }
         if (isVideoAvailable) {
-            if (currentUserIsVideo) {
-                if (service.isScreencast()) {
-                    bottomButton.setType(VoIpSwitchLayout.Type.VIDEO, false, fast);
-                } else {
-                    bottomButton.setType(VoIpSwitchLayout.Type.VIDEO, false, fast);
-                }
-            } else {
-                bottomButton.setType(VoIpSwitchLayout.Type.VIDEO, true, fast);
-            }
+            bottomButton.setType(VoIpSwitchLayout.Type.VIDEO, !currentUserIsVideo, fast);
             bottomButton.setOnBtnClickedListener(view -> {
                 AndroidUtilities.cancelRunOnUIThread(hideUIRunnable);
                 hideUiRunnableWaiting = false;

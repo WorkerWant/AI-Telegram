@@ -9748,6 +9748,8 @@
     <string name="DeveloperAllowSaveMedia">Allow saving media everywhere</string>
     <string name="DeveloperAllowCopy">Allow copying restricted messages</string>
     <string name="DeveloperKeepDisappearingMedia">Keep disappearing media</string>
+    <string name="DeveloperLocalPremium">Local Premium</string>
+    <string name="DeveloperLocalPremiumInfo">May affect some APIs since real Premium is not active.</string>
     <string name="AIApiToken">API Token</string>
     <string name="AIApiTokenHint">Enter your OpenAI API key</string>
     <string name="AIResponseSize">Response Size</string>

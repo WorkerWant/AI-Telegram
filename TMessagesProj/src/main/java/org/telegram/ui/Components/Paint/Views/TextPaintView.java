@@ -424,11 +424,7 @@ public class TextPaintView extends EntityView {
             } else if (x > inset + width - radius && y > middle - radius && x < inset + width + radius && y < middle + radius) {
                 return SELECTION_RIGHT_HANDLE;
             }
-
-            if (x > inset && x < width && y > inset && y < height) {
-                return 0;
-            }
-
+            
             return 0;
         }
 

@@ -502,6 +502,7 @@ public class SharedConfig {
                 editor.putBoolean("allowSaveToGalleryEverywhere", allowSaveToGalleryEverywhere);
                 editor.putBoolean("allowCopyEverywhere", allowCopyEverywhere);
                 editor.putBoolean("keepDisappearingMedia", keepDisappearingMedia);
+                editor.putBoolean("localPremium", localPremium);
                 
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("AI Settings saving: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -540,6 +541,37 @@ public class SharedConfig {
                 FileLog.e(e);
             }
         }
+    }
+
+    public static void applyLocalPremium() {
+        AndroidUtilities.runOnUIThread(() -> {
+            for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                UserConfig config = UserConfig.getInstance(account);
+                if (!config.isClientActivated()) {
+                    localPremiumStoredStateSet[account] = false;
+                    continue;
+                }
+                TLRPC.User user = config.getCurrentUser();
+                if (localPremium) {
+                    applyLocalPremiumToUser(account, user, false);
+                } else {
+                    if (localPremiumStoredStateSet[account] && user != null) {
+                        user.premium = localPremiumStoredState[account];
+                    }
+                    localPremiumStoredStateSet[account] = false;
+                }
+
+                boolean premium = user != null && user.premium;
+                MessagesController messagesController = MessagesController.getInstance(account);
+                messagesController.updatePremium(premium);
+                NotificationCenter.getInstance(account).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
+                MediaDataController mediaDataController = MediaDataController.getInstance(account);
+                mediaDataController.loadPremiumPromo(false);
+                mediaDataController.loadReactions(false, null);
+                messagesController.getStoriesController().invalidateStoryLimit();
+            }
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.premiumStatusChangedGlobal);
+        });
     }
 
     public static int getLastLocalId() {
@@ -652,6 +684,7 @@ public class SharedConfig {
             allowSaveToGalleryEverywhere = preferences.getBoolean("allowSaveToGalleryEverywhere", false);
             allowCopyEverywhere = preferences.getBoolean("allowCopyEverywhere", false);
             keepDisappearingMedia = preferences.getBoolean("keepDisappearingMedia", false);
+            localPremium = preferences.getBoolean("localPremium", false);
             
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -777,6 +810,9 @@ public class SharedConfig {
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("Notifications", Activity.MODE_PRIVATE);
             showNotificationsForAllAccounts = preferences.getBoolean("AllAccounts", true);
 
+            if (localPremium) {
+                applyLocalPremium();
+            }
             configLoaded = true;
         }
     }
@@ -1969,6 +2005,30 @@ public class SharedConfig {
     public static boolean allowSaveToGalleryEverywhere;
     public static boolean allowCopyEverywhere;
     public static boolean keepDisappearingMedia;
+    public static boolean localPremium;
+    private static final boolean[] localPremiumStoredState = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
+    private static final boolean[] localPremiumStoredStateSet = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
+
+    private static void applyLocalPremiumToUser(int account, TLRPC.User user, boolean forceStore) {
+        if (!localPremium || user == null) {
+            return;
+        }
+        if (forceStore || !localPremiumStoredStateSet[account]) {
+            localPremiumStoredState[account] = user.premium;
+            localPremiumStoredStateSet[account] = true;
+        }
+        if (!user.premium) {
+            user.premium = true;
+        }
+    }
+
+    public static void onLocalPremiumUserUpdated(int account, TLRPC.User user) {
+        if (localPremium) {
+            applyLocalPremiumToUser(account, user, true);
+        } else {
+            localPremiumStoredStateSet[account] = false;
+        }
+    }
     
     // AI Settings
     public static boolean aiEnabled;

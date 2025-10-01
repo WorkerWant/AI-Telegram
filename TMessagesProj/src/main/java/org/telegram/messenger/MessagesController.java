@@ -2037,21 +2037,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (promoDialogId != 0 && promoDialogId == d.id) {
                     promoDialog = d;
                 }
-                if (d.last_message_date == 0) {
-                    ArrayList<MessageObject> arrayList = new_dialogMessage.get(d.id);
-                    if (arrayList != null) {
-                        int maxDate = Integer.MIN_VALUE;
-                        for (int i = 0; i < arrayList.size(); ++i) {
-                            MessageObject msg = arrayList.get(i);
-                            if (msg != null && msg.messageOwner != null && maxDate < msg.messageOwner.date) {
-                                maxDate = msg.messageOwner.date;
-                            }
-                        }
-                        if (maxDate > Integer.MIN_VALUE) {
-                            d.last_message_date = maxDate;
-                        }
-                    }
-                }
+                updateDialogLastMessageDate(d, new_dialogMessage);
                 if (DialogObject.isChannel(d)) {
                     TLRPC.Chat chat = chatsDict.get(-d.id);
                     if (chat != null) {
@@ -10423,9 +10409,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                             }
                                             objects.add(messageObject);
                                             dialogMessage.put(did, objects);
-                                            if (promoDialog.last_message_date == 0) {
-                                                promoDialog.last_message_date = messageObject.messageOwner.date;
-                                            }
+                                            updateDialogLastMessageDate(promoDialog, objects);
                                             getTranslateController().checkDialogMessage(did);
                                         }
                                         sortDialogs(null);
@@ -12164,21 +12148,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (d.id == 0) {
                     continue;
                 }
-                if (d.last_message_date == 0) {
-                    ArrayList<MessageObject> messages = new_dialogMessage.get(d.id);
-                    if (messages != null) {
-                        int maxDate = Integer.MIN_VALUE;
-                        for (int i = 0; i < messages.size(); ++i) {
-                            MessageObject msg = messages.get(i);
-                            if (msg != null && msg.messageOwner != null && msg.messageOwner.date > maxDate) {
-                                maxDate = msg.messageOwner.date;
-                            }
-                        }
-                        if (maxDate > Integer.MIN_VALUE) {
-                            d.last_message_date = maxDate;
-                        }
-                    }
-                }
+                updateDialogLastMessageDate(d, new_dialogMessage);
                 if (DialogObject.isChannel(d)) {
                     TLRPC.Chat chat = chatsDict.get(-d.id);
                     if (chat != null && chat.left) {
@@ -12705,22 +12675,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (promoDialogId != 0 && promoDialogId == d.id) {
                     promoDialog = d;
                 }
-                if (d.last_message_date == 0) {
-                    ArrayList<MessageObject> messages = new_dialogMessage.get(d.id);
-                    if (messages != null) {
-                        int maxDate = Integer.MIN_VALUE;
-                        for (int i = 0; i < messages.size(); ++i) {
-                            MessageObject msg = messages.get(i);
-                            if (msg != null && msg.messageOwner != null && msg.messageOwner.date > maxDate) {
-                                maxDate = msg.messageOwner.date;
-                            }
-                        }
-                        if (maxDate > Integer.MIN_VALUE) {
-                            d.last_message_date = maxDate;
-                        }
-
-                    }
-                }
+                updateDialogLastMessageDate(d, new_dialogMessage);
                 boolean allowCheck = true;
                 if (DialogObject.isChannel(d)) {
                     TLRPC.Chat chat = chatsDict.get(-d.id);
@@ -13338,21 +13293,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                 }
-                if (d.last_message_date == 0) {
-                    ArrayList<MessageObject> messages = new_dialogMessage.get(d.id);
-                    if (messages != null) {
-                        int maxDate = Integer.MIN_VALUE;
-                        for (int i = 0; i < messages.size(); ++i) {
-                            MessageObject msg = messages.get(i);
-                            if (msg != null && msg.messageOwner != null && msg.messageOwner.date > maxDate) {
-                                maxDate = msg.messageOwner.date;
-                            }
-                        }
-                        if (maxDate > Integer.MIN_VALUE) {
-                            d.last_message_date = maxDate;
-                        }
-                    }
-                }
+                updateDialogLastMessageDate(d, new_dialogMessage);
                 new_dialogs_dict.put(d.id, d);
                 dialogsToUpdate.put(d.id, d.unread_count);
 
@@ -16302,21 +16243,7 @@ public class MessagesController extends BaseController implements NotificationCe
                             continue;
                         }
                     }
-                    if (d.last_message_date == 0) {
-                        ArrayList<MessageObject> messages = new_dialogMessage.get(d.id);
-                        if (messages != null) {
-                            int maxDate = Integer.MIN_VALUE;
-                            for (int i = 0; i < messages.size(); ++i) {
-                                MessageObject msg = messages.get(i);
-                                if (msg != null && msg.messageOwner != null && msg.messageOwner.date > maxDate) {
-                                    maxDate = msg.messageOwner.date;
-                                }
-                            }
-                            if (maxDate > Integer.MIN_VALUE) {
-                                d.last_message_date = maxDate;
-                            }
-                        }
-                    }
+                updateDialogLastMessageDate(d, new_dialogMessage);
 
                     Integer value = dialogs_read_inbox_max.get(d.id);
                     if (value == null) {
@@ -16792,15 +16719,16 @@ public class MessagesController extends BaseController implements NotificationCe
             }
 
             boolean missingData;
+            boolean isSomeDataMissed = user == null || needFwdUser && user2 == null && channel == null || needBotUser && user3 == null;
             if (updates instanceof TLRPC.TL_updateShortMessage) {
-                missingData = user == null || needFwdUser && user2 == null && channel == null || needBotUser && user3 == null;
+                missingData = isSomeDataMissed;
             } else {
                 TLRPC.Chat chat = getChat(updates.chat_id);
                 if (chat == null) {
                     chat = getMessagesStorage().getChatSync(updates.chat_id);
                     putChat(chat, true);
                 }
-                missingData = chat == null || user == null || needFwdUser && user2 == null && channel == null || needBotUser && user3 == null;
+                missingData = chat == null || isSomeDataMissed;
             }
             if (!missingData && !updates.entities.isEmpty()) {
                 for (int a = 0; a < updates.entities.size(); a++) {
@@ -16817,7 +16745,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 missingData = true;
                                 break;
                             }
-                            putUser(user, true);
+                            putUser(entityUser, true);
                         }
                     }
                 }
@@ -19885,12 +19813,19 @@ public class MessagesController extends BaseController implements NotificationCe
             }
             SparseBooleanArray reactionsMentionsMessageIds = new SparseBooleanArray();
             try {
-                SQLiteCursor cursor = null;
-                if (topicId == 0) {
-                    cursor = getMessagesStorage().getDatabase().queryFinalized(String.format(Locale.US, "SELECT message_id, state FROM reaction_mentions WHERE message_id IN (%s) AND dialog_id = %d", stringBuilder, dialogId));
-                } else {
-                    cursor = getMessagesStorage().getDatabase().queryFinalized(String.format(Locale.US, "SELECT message_id, state FROM reaction_mentions_topics WHERE message_id IN (%s) AND dialog_id = %d AND topic_id = %d", stringBuilder, dialogId, topicId));
+                String tableName = topicId == 0 ? "reaction_mentions" : "reaction_mentions_topics";
+                StringBuilder queryBuilder = new StringBuilder();
+                queryBuilder.append("SELECT message_id, state FROM ")
+                        .append(tableName)
+                        .append(" WHERE message_id IN (")
+                        .append(stringBuilder)
+                        .append(") AND dialog_id = ")
+                        .append(dialogId);
+                if (topicId != 0) {
+                    queryBuilder.append(" AND topic_id = ").append(topicId);
                 }
+
+                SQLiteCursor cursor = getMessagesStorage().getDatabase().queryFinalized(queryBuilder.toString());
                 while (cursor.next()) {
                     int messageId = cursor.intValue(0);
                     boolean hasUnreadReactions = cursor.intValue(1) == 1;
@@ -19918,26 +19853,26 @@ public class MessagesController extends BaseController implements NotificationCe
 
                 SQLitePreparedStatement state = null;
                 try {
-                    if (topicId == 0) {
-                        state = getMessagesStorage().getDatabase().executeFast("REPLACE INTO reaction_mentions VALUES(?, ?, ?)");
-                        state.requery();
-                        state.bindInteger(1, messageId);
-                        state.bindInteger(2, hasUnreadReaction ? 1 : 0);
-                        state.bindLong(3, dialogId);
-                        state.step();
-                        state.dispose();
-                    } else {
-                        state = getMessagesStorage().getDatabase().executeFast("REPLACE INTO reaction_mentions_topics VALUES(?, ?, ?, ?)");
-                        state.requery();
-                        state.bindInteger(1, messageId);
-                        state.bindInteger(2, hasUnreadReaction ? 1 : 0);
-                        state.bindLong(3, dialogId);
+                    boolean isTopicId = topicId == 0;
+                    String sql = isTopicId
+                            ? "REPLACE INTO reaction_mentions VALUES(?, ?, ?)"
+                            : "REPLACE INTO reaction_mentions_topics VALUES(?, ?, ?, ?)";
+                    state = getMessagesStorage().getDatabase().executeFast(sql);
+                    state.requery();
+                    state.bindInteger(1, messageId);
+                    state.bindInteger(2, hasUnreadReaction ? 1 : 0);
+                    state.bindLong(3, dialogId);
+                    if (isTopicId) {
                         state.bindLong(4, topicId);
-                        state.step();
+                    }
+                    state.step();
+                } catch (SQLiteException e) {
+                    FileLog.e(e);
+                    //e.printStackTrace();
+                } finally {
+                    if (state != null) {
                         state.dispose();
                     }
-                } catch (SQLiteException e) {
-                    e.printStackTrace();
                 }
             }
             if (needReload) {
@@ -23181,6 +23116,32 @@ public class MessagesController extends BaseController implements NotificationCe
                 processUpdates((TLRPC.Updates) response, false);
             }
         });
+    }
+
+    private static void updateDialogLastMessageDate(TLRPC.Dialog dialog, LongSparseArray<ArrayList<MessageObject>> dialogMessages) {
+        if (dialogMessages == null) {
+            return;
+        }
+        updateDialogLastMessageDate(dialog, dialogMessages.get(dialog.id));
+    }
+
+    private static void updateDialogLastMessageDate(TLRPC.Dialog dialog, ArrayList<MessageObject> messages) {
+        if (dialog == null || dialog.last_message_date != 0 || messages == null) {
+            return;
+        }
+        int maxDate = Integer.MIN_VALUE;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject messageObject = messages.get(i);
+            if (messageObject != null && messageObject.messageOwner != null) {
+                int messageDate = messageObject.messageOwner.date;
+                if (messageDate > maxDate) {
+                    maxDate = messageDate;
+                }
+            }
+        }
+        if (maxDate > Integer.MIN_VALUE) {
+            dialog.last_message_date = maxDate;
+        }
     }
 
     public static class SavedMusicList {

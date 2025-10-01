@@ -195,10 +195,6 @@ public class LocationView extends EntityView {
                 return SELECTION_RIGHT_HANDLE;
             }
 
-            if (x > inset && x < width && y > inset && y < height) {
-                return 0;
-            }
-
             return 0;
         }
 

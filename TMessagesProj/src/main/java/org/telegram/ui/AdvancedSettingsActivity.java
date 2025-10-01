@@ -37,6 +37,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
     private int allowSaveMediaRow;
     private int allowCopyRow;
     private int keepDisappearingRow;
+    private int localPremiumRow;
     
 
     @Override
@@ -53,6 +54,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         allowSaveMediaRow = rowCount++;
         allowCopyRow = rowCount++;
         keepDisappearingRow = rowCount++;
+        localPremiumRow = rowCount++;
     }
 
     @Override
@@ -115,6 +117,15 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 } else if (listAdapter != null) {
                     listAdapter.notifyItemChanged(keepDisappearingRow);
                 }
+            } else if (position == localPremiumRow) {
+                SharedConfig.localPremium = !SharedConfig.localPremium;
+                SharedConfig.saveConfig();
+                SharedConfig.applyLocalPremium();
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.localPremium);
+                } else if (listAdapter != null) {
+                    listAdapter.notifyItemChanged(localPremiumRow);
+                }
             }
         });
 
@@ -151,7 +162,9 @@ public class AdvancedSettingsActivity extends BaseFragment {
                     } else if (position == allowCopyRow) {
                         checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperAllowCopy), SharedConfig.allowCopyEverywhere, true);
                     } else if (position == keepDisappearingRow) {
-                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperKeepDisappearingMedia), SharedConfig.keepDisappearingMedia, false);
+                        checkCell.setTextAndCheck(LocaleController.getString(R.string.DeveloperKeepDisappearingMedia), SharedConfig.keepDisappearingMedia, true);
+                    } else if (position == localPremiumRow) {
+                        checkCell.setTextAndValueAndCheck(LocaleController.getString(R.string.DeveloperLocalPremium), LocaleController.getString(R.string.DeveloperLocalPremiumInfo), SharedConfig.localPremium, false, true);
                     }
                     break;
                 }
@@ -161,7 +174,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow;
+            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow;
         }
 
         @NonNull
@@ -189,7 +202,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         public int getItemViewType(int position) {
             if (position == headerRow) {
                 return 0;
-            } else if (position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow) {
+            } else if (position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow) {
                 return 1;
             }
             return 2;
