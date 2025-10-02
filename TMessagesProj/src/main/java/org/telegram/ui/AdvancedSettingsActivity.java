@@ -1,10 +1,12 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -15,12 +17,14 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
+import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
@@ -38,6 +42,8 @@ public class AdvancedSettingsActivity extends BaseFragment {
     private int allowCopyRow;
     private int keepDisappearingRow;
     private int localPremiumRow;
+    private int roundVideoDurationRow;
+    private int roundVideoCameraRow;
     
 
     @Override
@@ -55,6 +61,18 @@ public class AdvancedSettingsActivity extends BaseFragment {
         allowCopyRow = rowCount++;
         keepDisappearingRow = rowCount++;
         localPremiumRow = rowCount++;
+        roundVideoDurationRow = rowCount++;
+        roundVideoCameraRow = rowCount++;
+    }
+
+    private String getRoundVideoCameraValue() {
+        int mode = SharedConfig.roundVideoCameraBehavior;
+        if (mode == SharedConfig.ROUND_VIDEO_CAMERA_BACK) {
+            return LocaleController.getString(R.string.DeveloperRoundVideoCameraBack);
+        } else if (mode == SharedConfig.ROUND_VIDEO_CAMERA_ASK) {
+            return LocaleController.getString(R.string.DeveloperRoundVideoCameraAsk);
+        }
+        return LocaleController.getString(R.string.DeveloperRoundVideoCameraFront);
     }
 
     @Override
@@ -126,6 +144,63 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 } else if (listAdapter != null) {
                     listAdapter.notifyItemChanged(localPremiumRow);
                 }
+            } else if (position == roundVideoDurationRow) {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.DeveloperRoundVideoDuration));
+
+                FrameLayout dialogContainer = new FrameLayout(getParentActivity());
+                final EditText editText = new EditText(getParentActivity());
+                editText.setInputType(InputType.TYPE_CLASS_NUMBER);
+                editText.setText(String.valueOf(SharedConfig.roundVideoMaxDuration));
+                editText.setSelection(editText.getText().length());
+                dialogContainer.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 24, 12, 24, 12));
+
+                builder.setView(dialogContainer);
+                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialog, which) -> {
+                    int value;
+                    try {
+                        value = Integer.parseInt(editText.getText().toString());
+                    } catch (Exception e) {
+                        value = 60;
+                    }
+                    if (value <= 0) {
+                        value = 1;
+                    }
+                    if (value != SharedConfig.roundVideoMaxDuration) {
+                        SharedConfig.roundVideoMaxDuration = value;
+                        SharedConfig.saveConfig();
+                        if (listAdapter != null) {
+                            listAdapter.notifyItemChanged(roundVideoDurationRow);
+                        }
+                    }
+                });
+                showDialog(builder.create());
+            } else if (position == roundVideoCameraRow) {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                CharSequence[] options = new CharSequence[] {
+                        LocaleController.getString(R.string.DeveloperRoundVideoCameraFront),
+                        LocaleController.getString(R.string.DeveloperRoundVideoCameraBack),
+                        LocaleController.getString(R.string.DeveloperRoundVideoCameraAsk)
+                };
+                AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.DeveloperRoundVideoCamera));
+                builder.setItems(options, (dialog, which) -> {
+                    if (which != SharedConfig.roundVideoCameraBehavior) {
+                        SharedConfig.roundVideoCameraBehavior = which;
+                        SharedConfig.saveConfig();
+                        if (listAdapter != null) {
+                            listAdapter.notifyItemChanged(roundVideoCameraRow);
+                        }
+                    }
+                });
+                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                showDialog(builder.create());
             }
         });
 
@@ -168,13 +243,22 @@ public class AdvancedSettingsActivity extends BaseFragment {
                     }
                     break;
                 }
+                case 2: {
+                    TextSettingsCell settingsCell = (TextSettingsCell) holder.itemView;
+                    if (position == roundVideoDurationRow) {
+                        settingsCell.setTextAndValue(LocaleController.getString(R.string.DeveloperRoundVideoDuration), LocaleController.formatPluralString("Seconds", SharedConfig.roundVideoMaxDuration), true);
+                    } else if (position == roundVideoCameraRow) {
+                        settingsCell.setTextAndValue(LocaleController.getString(R.string.DeveloperRoundVideoCamera), getRoundVideoCameraValue(), false);
+                    }
+                    break;
+                }
             }
         }
 
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow;
+            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow || position == roundVideoDurationRow || position == roundVideoCameraRow;
         }
 
         @NonNull
@@ -188,6 +272,10 @@ public class AdvancedSettingsActivity extends BaseFragment {
                     break;
                 case 1:
                     view = new TextCheckCell(mContext);
+                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    break;
+                case 2:
+                    view = new TextSettingsCell(mContext);
                     view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 default:
@@ -204,8 +292,10 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 return 0;
             } else if (position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow) {
                 return 1;
+            } else if (position == roundVideoDurationRow || position == roundVideoCameraRow) {
+                return 2;
             }
-            return 2;
+            return 3;
         }
     }
 

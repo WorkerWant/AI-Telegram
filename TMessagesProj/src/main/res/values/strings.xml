@@ -9750,6 +9750,11 @@
     <string name="DeveloperKeepDisappearingMedia">Keep disappearing media</string>
     <string name="DeveloperLocalPremium">Local Premium</string>
     <string name="DeveloperLocalPremiumInfo">May affect some APIs since real Premium is not active.</string>
+    <string name="DeveloperRoundVideoDuration">Round video max duration</string>
+    <string name="DeveloperRoundVideoCamera">Round video camera</string>
+    <string name="DeveloperRoundVideoCameraFront">Front camera</string>
+    <string name="DeveloperRoundVideoCameraBack">Rear camera</string>
+    <string name="DeveloperRoundVideoCameraAsk">Ask every time</string>
     <string name="AIApiToken">API Token</string>
     <string name="AIApiTokenHint">Enter your OpenAI API key</string>
     <string name="AIResponseSize">Response Size</string>

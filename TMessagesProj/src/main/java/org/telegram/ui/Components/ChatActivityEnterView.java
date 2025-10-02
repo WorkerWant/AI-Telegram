@@ -1394,7 +1394,9 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
             float progressToSeekbarStep1 = 0f;
             float progressToSeekbarStep2 = 0;
             float exitProgress2 = 0f;
-            float hidePause = hidePauseT.set(isInVideoMode && millisecondsRecorded >= 59_000);
+            long roundVideoLimitMs = Math.max(1, SharedConfig.roundVideoMaxDuration) * 1000L;
+            long hidePauseThreshold = Math.max(0, roundVideoLimitMs - 1000L);
+            float hidePause = hidePauseT.set(isInVideoMode && millisecondsRecorded >= hidePauseThreshold);
 
             if (transformToSeekbar != 0 && audioTimelineView != null) {
                 float step1Time = 0.38f;
@@ -12549,7 +12551,9 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
             int ms = (int) (t % 1000L) / 10;
 
             if (isInVideoMode()) {
-                if (t >= 59500 && !stoppedInternal) {
+                long maxDurationMs = Math.max(1, SharedConfig.roundVideoMaxDuration) * 1000L;
+                long stopThreshold = Math.max(0, maxDurationMs - 500L);
+                if (t >= stopThreshold && !stoppedInternal) {
                     startedDraggingX = -1;
                     delegate.needStartRecordVideo(3, true, 0, voiceOnce ? 0x7FFFFFFF : 0, effectId, 0);
                     sendButton.setEffect(effectId = 0);

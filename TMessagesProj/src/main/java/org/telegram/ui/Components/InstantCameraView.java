@@ -99,6 +99,7 @@ import org.telegram.messenger.video.MP4Builder;
 import org.telegram.messenger.video.Mp4Movie;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 import org.telegram.ui.Stories.recorder.DualCameraView;
@@ -175,6 +176,8 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
     private boolean recording;
     private long recordedTime;
     private boolean cancelled;
+    private Boolean pendingInitialFrontface;
+    private AlertDialog cameraChoiceDialog;
 
     private CameraGLThread cameraThread;
     private Size[] previewSize = new Size[2];
@@ -632,7 +635,8 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
         rect.set(x - dp(8), y - dp(8), x + cameraContainer.getMeasuredWidth() + dp(8), y + cameraContainer.getMeasuredHeight() + dp(8));
         if (recording) {
             recordedTime = System.currentTimeMillis() - recordStartTime + recordPlusTime;
-            progress = Math.min(1f, recordedTime / 60000.0f);
+            float maxDurationMs = Math.max(1, SharedConfig.roundVideoMaxDuration) * 1000f;
+            progress = Math.min(1f, recordedTime / maxDurationMs);
             invalidate();
         }
 
@@ -725,6 +729,42 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
             return;
         }
 
+        if (!fromPaused && cameraChoiceDialog != null) {
+            if (cameraChoiceDialog.isShowing()) {
+                return;
+            }
+            cameraChoiceDialog = null;
+        }
+
+        if (!fromPaused && pendingInitialFrontface == null) {
+            int behavior = SharedConfig.roundVideoCameraBehavior;
+            if (behavior == SharedConfig.ROUND_VIDEO_CAMERA_ASK) {
+                Activity activity = delegate != null ? delegate.getParentActivity() : null;
+                if (activity == null || activity.isFinishing()) {
+                    pendingInitialFrontface = Boolean.TRUE;
+                } else {
+                    CharSequence[] options = new CharSequence[] {
+                            LocaleController.getString(R.string.DeveloperRoundVideoCameraFront),
+                            LocaleController.getString(R.string.DeveloperRoundVideoCameraBack)
+                    };
+                    AlertDialog.Builder builder = new AlertDialog.Builder(activity, resourcesProvider);
+                    builder.setTitle(LocaleController.getString(R.string.DeveloperRoundVideoCamera));
+                    builder.setItems(options, (dialog, which) -> {
+                        pendingInitialFrontface = which == 0;
+                        dialog.dismiss();
+                        showCamera(false);
+                    });
+                    builder.setNegativeButton(LocaleController.getString(R.string.Cancel), (dialog, which) -> {});
+                    cameraChoiceDialog = builder.create();
+                    cameraChoiceDialog.setOnDismissListener(d -> cameraChoiceDialog = null);
+                    cameraChoiceDialog.show();
+                    return;
+                }
+            } else {
+                pendingInitialFrontface = behavior != SharedConfig.ROUND_VIDEO_CAMERA_BACK;
+            }
+        }
+
         if (switchCameraDrawable == null) {
             switchCameraDrawable = new RLottieDrawable(R.raw.roundcamera_flip, "roundcamera_flip", dp(28), dp(28));
             switchCameraDrawable.setCurrentFrame(0);
@@ -750,9 +790,12 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
         cameraReady = false;
         selectedCamera = null;
         if (!fromPaused) {
-            if (!useCamera2) {
+            if (pendingInitialFrontface != null) {
+                isFrontface = pendingInitialFrontface;
+            } else if (!useCamera2) {
                 isFrontface = true;
             }
+            pendingInitialFrontface = null;
             updateFlash();
             recordedTime = 0;
             progress = 0;
@@ -1134,6 +1177,11 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
     }
 
     public void hideCamera(boolean async) {
+        if (cameraChoiceDialog != null) {
+            cameraChoiceDialog.dismiss();
+            cameraChoiceDialog = null;
+        }
+        pendingInitialFrontface = null;
         destroy(async);
         cameraContainer.setTranslationX(0);
         textureOverlayView.setTranslationX(0);
@@ -2525,6 +2573,7 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
             }
             try {
                 boolean isLast = false;
+                final long maxDurationMicros = Math.max(1, SharedConfig.roundVideoMaxDuration) * 1_000_000L;
                 while (input != null) {
                     int inputBufferIndex = audioEncoder.dequeueInputBuffer(0);
                     if (inputBufferIndex >= 0) {
@@ -2540,10 +2589,10 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
                         for (int a = input.lastWroteBuffer; a <= input.results; a++) {
                             if (a < input.results) {
                                 long totalTime = input.offset[a] - audioStartTime;
-                                if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= 60_000000)) {
+                                if (!running && (input.offset[a] >= videoLast - desyncTime || totalTime >= maxDurationMicros)) {
                                     if (BuildVars.LOGS_ENABLED) {
-                                        if (totalTime >= 60_000000) {
-                                            FileLog.d("InstantCamera stop audio encoding because recorded time more than 60s");
+                                        if (totalTime >= maxDurationMicros) {
+                                            FileLog.d("InstantCamera stop audio encoding because recorded time exceeded limit: " + SharedConfig.roundVideoMaxDuration + "s");
                                         } else {
                                             FileLog.d("InstantCamera stop audio encoding because of stoped video recording at " + input.offset[a] + " last video " + videoLast);
                                         }
