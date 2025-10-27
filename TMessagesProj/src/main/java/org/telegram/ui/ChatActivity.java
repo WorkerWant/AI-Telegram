@@ -1143,6 +1143,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     public final static int OPTION_SUGGESTION_EDIT_TIME = 112;
     public final static int OPTION_SUGGESTION_EDIT_MESSAGE = 113;
     public final static int OPTION_SUGGESTION_ADD_OFFER = 114;
+    public final static int OPTION_OBJECT_DATA = 115;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -33878,6 +33879,23 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 }, getResourceProvider(), AlertsCreator.SUGGEST_DATE_PICKER_MODE_EDIT).show(), AmountUtils.Amount.of(suggestedPost != null ? suggestedPost.price : null), !ChatObject.canManageMonoForum(currentAccount, getDialogId()));
                 break;
             }
+            case OPTION_OBJECT_DATA: {
+                try {
+                    TLRPC.Message message = selectedObject.messageOwner;
+                    if (message != null) {
+                        org.telegram.tgnet.SerializedData sd = new org.telegram.tgnet.SerializedData(message.getObjectSize());
+                        message.serializeToStream(sd);
+                        String data = android.util.Base64.encodeToString(sd.toByteArray(), android.util.Base64.DEFAULT);
+                        sd.cleanup();
+                        android.os.Bundle args = new android.os.Bundle();
+                        args.putLong("dialog_id", dialog_id);
+                        args.putLong("topic_id", getTopicId());
+                        args.putString("message_data", data);
+                        presentFragment(new org.telegram.ui.ObjectDataActivity(args));
+                    }
+                } catch (Exception ignore) {}
+                break;
+            }
         }
         selectedObject = null;
         selectedObjectGroup = null;
@@ -44887,6 +44905,12 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 options.add(OPTION_DELETE);
                 icons.add(deleteIconRes);
             }
+        }
+
+        if (selectedObject != null) {
+            items.add(LocaleController.getString(R.string.ObjectData));
+            options.add(OPTION_OBJECT_DATA);
+            icons.add(R.drawable.msg_info);
         }
     }
 }

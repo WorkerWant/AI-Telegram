@@ -9795,6 +9795,8 @@
     <string name="DeveloperRoundVideoCameraFront">Front camera</string>
     <string name="DeveloperRoundVideoCameraBack">Rear camera</string>
     <string name="DeveloperRoundVideoCameraAsk">Ask every time</string>
+    <string name="ObjectData">Object Data</string>
+    <string name="CopyObject">Copy object</string>
     <string name="AIApiToken">API Token</string>
     <string name="AIApiTokenHint">Enter your OpenAI API key</string>
     <string name="AIResponseSize">Response Size</string>

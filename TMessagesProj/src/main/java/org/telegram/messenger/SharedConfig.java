@@ -688,13 +688,7 @@ public class SharedConfig {
             keepDisappearingMedia = preferences.getBoolean("keepDisappearingMedia", false);
             localPremium = preferences.getBoolean("localPremium", false);
             roundVideoMaxDuration = preferences.getInt("roundVideoMaxDuration", 60);
-            if (roundVideoMaxDuration <= 0) {
-                roundVideoMaxDuration = 60;
-            }
             roundVideoCameraBehavior = preferences.getInt("roundVideoCameraBehavior", ROUND_VIDEO_CAMERA_FRONT);
-            if (roundVideoCameraBehavior < ROUND_VIDEO_CAMERA_FRONT || roundVideoCameraBehavior > ROUND_VIDEO_CAMERA_ASK) {
-                roundVideoCameraBehavior = ROUND_VIDEO_CAMERA_FRONT;
-            }
             
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -2018,11 +2012,12 @@ public class SharedConfig {
     public static boolean allowCopyEverywhere;
     public static boolean keepDisappearingMedia;
     public static boolean localPremium;
+    public static int roundVideoCameraBehavior;
+    public static int roundVideoMaxDuration;
+
     public static final int ROUND_VIDEO_CAMERA_FRONT = 0;
     public static final int ROUND_VIDEO_CAMERA_BACK = 1;
     public static final int ROUND_VIDEO_CAMERA_ASK = 2;
-    public static int roundVideoCameraBehavior = ROUND_VIDEO_CAMERA_FRONT;
-    public static int roundVideoMaxDuration = 60;
     private static final boolean[] localPremiumStoredState = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
     private static final boolean[] localPremiumStoredStateSet = new boolean[UserConfig.MAX_ACCOUNT_COUNT];
 
@@ -2076,7 +2071,4 @@ public class SharedConfig {
         SharedPreferences pref = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
         pref.edit().putBoolean("drawActionBarShadow", drawActionBarShadow);
     }
-
-
-
 }
