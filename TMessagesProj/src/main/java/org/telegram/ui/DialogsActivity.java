@@ -48,6 +48,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
@@ -186,6 +187,7 @@ import org.telegram.ui.Components.ImageUpdater;
 import org.telegram.ui.Components.PermissionRequest;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Gifts.GiftSheet;
+import org.telegram.ui.SessionsActivity;
 import org.telegram.ui.Stars.StarGiftSheet;
 import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stars.StarsIntroActivity;
@@ -526,6 +528,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private float authHintCellProgress;
     private boolean authHintCellAnimating;
     private boolean dialogsHintCellVisible;
+    private static final long RECENT_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000L;
+    private static final long RECENT_SESSION_REFRESH_MS = 10 * 60 * 1000L;
+    private boolean recentSessionWarning;
+    private boolean recentSessionDismissed;
+    private boolean recentSessionLoading;
+    private long recentSessionLastCheck;
     private boolean authHintCellVisible;
     private Long cacheSize, deviceSize;
 
@@ -2842,8 +2850,49 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         BirthdayController.getInstance(currentAccount).check();
+        fetchRecentSessionsIfNeeded(true);
 
         return true;
+    }
+
+    private void fetchRecentSessionsIfNeeded(boolean force) {
+        if (recentSessionLoading) {
+            return;
+        }
+        final long now = SystemClock.elapsedRealtime();
+        if (!force && recentSessionLastCheck != 0 && now - recentSessionLastCheck < RECENT_SESSION_REFRESH_MS) {
+            return;
+        }
+        recentSessionLastCheck = now;
+        recentSessionLoading = true;
+        TL_account.getAuthorizations req = new TL_account.getAuthorizations();
+        int reqId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            recentSessionLoading = false;
+            boolean hasRecent = false;
+            if (response instanceof TL_account.authorizations) {
+                TL_account.authorizations res = (TL_account.authorizations) response;
+                long nowSeconds = System.currentTimeMillis() / 1000;
+                for (int i = 0; i < res.authorizations.size(); i++) {
+                    TLRPC.TL_authorization authorization = res.authorizations.get(i);
+                    if (authorization.current) {
+                        continue;
+                    }
+                    long ageMs = (nowSeconds - authorization.date_created) * 1000L;
+                    if (ageMs >= 0 && ageMs < RECENT_SESSION_WINDOW_MS) {
+                        hasRecent = true;
+                        break;
+                    }
+                }
+            }
+            if (recentSessionWarning != hasRecent) {
+                recentSessionWarning = hasRecent;
+                if (!recentSessionWarning) {
+                    recentSessionDismissed = false;
+                }
+                updateDialogsHint();
+            }
+        }));
+        ConnectionsManager.getInstance(currentAccount).bindRequestToGuid(reqId, classGuid);
     }
 
     public static void loadDialogs(AccountInstance accountInstance) {
@@ -5895,6 +5944,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
+        fetchRecentSessionsIfNeeded(false);
+
         boolean updateActiveGiftAuctionsHintCellVisibility = false;
 
         if (dialogsHintCell != null) {
@@ -5906,6 +5957,23 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (isInPreviewMode()) {
             dialogsHintCellVisible = false;
             dialogsHintCell.setVisibility(View.GONE);
+            updateAuthHintCellVisibility(false);
+        } else if (!recentSessionDismissed && recentSessionWarning) {
+            dialogsHintCellVisible = true;
+            dialogsHintCell.setVisibility(View.VISIBLE);
+            dialogsHintCell.setCompact(true);
+            dialogsHintCell.setOnClickListener(v -> presentFragment(new SessionsActivity(0)));
+            dialogsHintCell.setText(
+                LocaleController.getString(R.string.RecentSessionWarningTitle),
+                LocaleController.getString(R.string.RecentSessionWarningMessage)
+            );
+            dialogsHintCell.setOnCloseListener(v -> {
+                recentSessionDismissed = true;
+                ChangeBounds transition = new ChangeBounds();
+                transition.setDuration(200);
+                TransitionManager.beginDelayedTransition((ViewGroup) dialogsHintCell.getParent(), transition);
+                updateDialogsHint();
+            });
             updateAuthHintCellVisibility(false);
         } else if (!getMessagesController().getUnconfirmedAuthController().auths.isEmpty() && folderId == 0 && initialDialogsType == DIALOGS_TYPE_DEFAULT) {
             dialogsHintCellVisible = false;

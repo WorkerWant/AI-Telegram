@@ -10073,4 +10073,6 @@
     <string name="Gift2AuctionsBidHasBeenIncreased">Your bid has been increased</string>
     <string name="Gift2AuctionsChangeRecipient">Change Recipient</string>
     <string name="Gift2AuctionsChangeRecipient2">You’ve already placed a bid on this gift for **%s.** Do you want to raise your bid and change the recipient to **%s?**</string>
+    <string name="RecentSessionWarningTitle">New login detected</string>
+    <string name="RecentSessionWarningMessage">A session was created in the last 24 hours. Review active sessions to secure your account.</string>
 </resources>
