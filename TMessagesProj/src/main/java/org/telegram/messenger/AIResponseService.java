@@ -195,7 +195,7 @@ public class AIResponseService {
         scheduler.schedule(() -> {
             AndroidUtilities.runOnUIThread(() -> {
                 SendMessagesHelper.getInstance(currentAccount).sendMessage(
-                    SendMessagesHelper.SendMessageParams.of(response, chatId, null, null, null, false, null, null, null, true, 0, null, false)
+                    SendMessagesHelper.SendMessageParams.of(response, chatId, null, null, null, false, null, null, null, true, 0, 0, null, false)
                 );
                 
                 MessagesController messagesController = MessagesController.getInstance(currentAccount);
