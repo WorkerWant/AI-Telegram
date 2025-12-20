@@ -29036,6 +29036,7 @@ public class ChatActivity extends BaseFragment implements
         }
         if (chatActivityEnterView != null) {
             chatActivityEnterView.onResume();
+            chatActivityEnterView.checkChannelRights();
         }
         if (currentUser != null) {
             chatEnterTime = System.currentTimeMillis();

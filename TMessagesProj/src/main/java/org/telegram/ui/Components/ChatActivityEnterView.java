@@ -134,6 +134,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
+import org.telegram.messenger.OutgoingMessagesBlocker;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
@@ -455,6 +456,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     private boolean sendVoiceEnabled = true;
     public boolean sendPlainEnabled = true;
     private boolean emojiButtonRestricted;
+    private long outgoingMessagesBlockedUntil;
+    private Runnable outgoingMessagesUnblockRunnable;
 
 
     private HashMap<View, Float> animationParamsX = new HashMap<>();
@@ -2731,6 +2734,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (adjustPanLayoutHelper != null && adjustPanLayoutHelper.animationInProgress() || attachLayoutPaddingAlpha == 0f) {
                     return;
                 }
+                if (handleOutgoingMessagesBlocked()) {
+                    return;
+                }
                 delegate.didPressAttachButton();
             });
             attachButton.setContentDescription(getString("AccDescrAttachButton", R.string.AccDescrAttachButton));
@@ -2786,6 +2792,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             @Override
             public boolean onTouchEvent(MotionEvent motionEvent) {
                 if (isLiveComment) return false;
+                if (handleOutgoingMessagesBlocked()) {
+                    return true;
+                }
                 createRecordCircle();
                 if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
                     if (recordCircle.isSendButtonVisible()) {
@@ -4194,7 +4203,61 @@ public class ChatActivityEnterView extends FrameLayout implements
         return view != null && (view == controlsView || view == recordCircle);
     }
 
+    private boolean updateOutgoingMessagesBlocked() {
+        if (!DialogObject.isUserDialog(dialog_id)) {
+            outgoingMessagesBlockedUntil = 0;
+            if (outgoingMessagesUnblockRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(outgoingMessagesUnblockRunnable);
+                outgoingMessagesUnblockRunnable = null;
+            }
+            return false;
+        }
+        long until = OutgoingMessagesBlocker.getBlockedUntil(currentAccount, dialog_id);
+        outgoingMessagesBlockedUntil = until;
+        if (outgoingMessagesUnblockRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(outgoingMessagesUnblockRunnable);
+            outgoingMessagesUnblockRunnable = null;
+        }
+        if (until > 0) {
+            long delay = until - System.currentTimeMillis();
+            if (delay > 0) {
+                outgoingMessagesUnblockRunnable = () -> {
+                    outgoingMessagesUnblockRunnable = null;
+                    checkChannelRights();
+                };
+                AndroidUtilities.runOnUIThread(outgoingMessagesUnblockRunnable, delay);
+            } else {
+                outgoingMessagesBlockedUntil = 0;
+            }
+        }
+        return outgoingMessagesBlockedUntil > 0;
+    }
+
+    private void showOutgoingMessagesBlockedBulletin() {
+        if (parentFragment == null) {
+            return;
+        }
+        long until = outgoingMessagesBlockedUntil;
+        if (until <= 0) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        int minutes = (int) Math.max(1, Math.ceil((until - now) / 60000d));
+        BulletinFactory.of(parentFragment).createSimpleBulletin(R.raw.passcode_lock_close, LocaleController.formatString(R.string.OutgoingMessagesBlocked, LocaleController.formatPluralString("Minutes", minutes))).show();
+    }
+
+    private boolean handleOutgoingMessagesBlocked() {
+        if (!updateOutgoingMessagesBlocked()) {
+            return false;
+        }
+        showOutgoingMessagesBlockedBulletin();
+        return true;
+    }
+
     private void showRestrictedHint() {
+        if (handleOutgoingMessagesBlocked()) {
+            return;
+        }
         if (delegate != null && delegate.checkCanRemoveRestrictionsByBoosts()) {
             return;
         }
@@ -4991,6 +5054,9 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
 
         private void send(InputContentInfoCompat inputContentInfo, boolean notify, int scheduleDate, int scheduleRepeatPeriod) {
+            if (handleOutgoingMessagesBlocked()) {
+                return;
+            }
             if (messageSendPreview != null) {
                 messageSendPreview.dismiss(true);
                 messageSendPreview = null;
@@ -6005,6 +6071,10 @@ public class ChatActivityEnterView extends FrameLayout implements
             AndroidUtilities.cancelRunOnUIThread(updateSlowModeRunnable);
             updateSlowModeRunnable = null;
         }
+        if (outgoingMessagesUnblockRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(outgoingMessagesUnblockRunnable);
+            outgoingMessagesUnblockRunnable = null;
+        }
         if (wakeLock != null) {
             try {
                 wakeLock.release();
@@ -6054,6 +6124,20 @@ public class ChatActivityEnterView extends FrameLayout implements
         } else if (userFull != null) {
             userInfo = userFull;
             audioVideoButtonContainer.setAlpha(userFull.voice_messages_forbidden ? 0.5f : 1.0f);
+        }
+        boolean outgoingBlocked = updateOutgoingMessagesBlocked();
+        if (outgoingBlocked) {
+            sendPlainEnabled = false;
+            stickersEnabled = false;
+            sendRoundEnabled = false;
+            sendVoiceEnabled = false;
+            emojiButtonRestricted = true;
+            emojiButtonAlpha = 0.5f;
+            updateEmojiButtonParams();
+            if (emojiView != null) {
+                emojiView.setStickersBanned(true, true, -dialog_id);
+            }
+            audioVideoButtonContainer.setAlpha(0.5f);
         }
         updateFieldHint(false);
         boolean currentModeVideo = isInVideoMode;
@@ -6274,6 +6358,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (overrideHint != null) {
             messageEditText.setHintText(overrideHint, animated);
             messageEditText.setHintText2(overrideHint2, animated);
+            return;
+        }
+        if (outgoingMessagesBlockedUntil > 0 && !isEditingMessage()) {
+            SpannableStringBuilder spannableStringBuilder = new SpannableStringBuilder(" d " + getString(R.string.OutgoingMessagesBlockedHint));
+            spannableStringBuilder.setSpan(new ColoredImageSpan(R.drawable.msg_mini_lock3), 1, 2, 0);
+            messageEditText.setHintText(spannableStringBuilder, animated);
+            messageEditText.setText(null);
+            messageEditText.setEnabled(false);
+            messageEditText.setInputType(EditorInfo.IME_ACTION_NONE);
             return;
         }
         if (!sendPlainEnabled && !isEditingMessage()) {
@@ -6682,6 +6775,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public boolean sendMessage() {
+        if (handleOutgoingMessagesBlocked()) {
+            return false;
+        }
         if (isInScheduleMode()) {
             AlertsCreator.createScheduleDatePickerDialog(parentActivity, parentFragment.getDialogId(), new AlertsCreator.ScheduleDatePickerDelegate() {
                 @Override
@@ -6701,6 +6797,9 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private boolean premiumEmojiBulletin = true;
     protected boolean sendMessageInternal(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, boolean allowConfirm) {
+        if (handleOutgoingMessagesBlocked()) {
+            return false;
+        }
         final Runnable send = () -> {
             if (slowModeTimer == Integer.MAX_VALUE && !isInScheduleMode()) {
                 if (delegate != null) {

@@ -1424,6 +1424,8 @@
     <string name="AttachGifRestricted">The admins of this group have restricted you from sending GIFs here until %1$s</string>
     <string name="AttachPlainRestricted">The admins of this group have restricted you from sending text message here until %1$s</string>
     <string name="SendMessageRestricted">The admins of this group have restricted you from writing here until %1$s</string>
+    <string name="OutgoingMessagesBlocked">Outgoing messages are disabled for %1$s</string>
+    <string name="OutgoingMessagesBlockedHint">Messages blocked</string>
     <string name="AttachMediaRestrictedForever">The admins of this group have restricted you from sending media here.</string>
     <string name="AttachAudioRestrictedForever">The admins of this group have restricted you from sending audio here.</string>
     <string name="AttachDocumentsRestrictedForever">The admins of this group have restricted you from sending documents here.</string>
@@ -9833,6 +9835,7 @@
     <string name="ProfileActionsLiveStream">Live Stream</string>
     <string name="ProfileActionsAddStory">Add Story</string>
     <string name="ProfileActionsStop">Stop</string>
+    <string name="ProfileActionsAlarm">Alarm</string>
     <string name="ProfileActionsEditPhoto">Set Profile</string>
     <string name="ProfileActionsEditUsername">Username</string>
     <string name="ProfileActionsEditInfo">Edit Info</string>
@@ -9891,6 +9894,7 @@
     <string name="DeveloperRoundVideoCameraFront">Front camera</string>
     <string name="DeveloperRoundVideoCameraBack">Rear camera</string>
     <string name="DeveloperRoundVideoCameraAsk">Ask every time</string>
+    <string name="DeveloperOutgoingBlockDuration">Alarm button duration</string>
     <string name="ObjectData">Object Data</string>
     <string name="CopyObject">Copy object</string>
     <string name="AIApiToken">API Token</string>

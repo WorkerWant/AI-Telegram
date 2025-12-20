@@ -44,6 +44,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
     private int localPremiumRow;
     private int roundVideoDurationRow;
     private int roundVideoCameraRow;
+    private int outgoingMessagesBlockDurationRow;
     
 
     @Override
@@ -63,6 +64,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         localPremiumRow = rowCount++;
         roundVideoDurationRow = rowCount++;
         roundVideoCameraRow = rowCount++;
+        outgoingMessagesBlockDurationRow = rowCount++;
     }
 
     private String getRoundVideoCameraValue() {
@@ -201,6 +203,41 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 });
                 builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
                 showDialog(builder.create());
+            } else if (position == outgoingMessagesBlockDurationRow) {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.DeveloperOutgoingBlockDuration));
+
+                FrameLayout dialogContainer = new FrameLayout(getParentActivity());
+                final EditText editText = new EditText(getParentActivity());
+                editText.setInputType(InputType.TYPE_CLASS_NUMBER);
+                editText.setText(String.valueOf(SharedConfig.outgoingMessagesBlockDuration));
+                editText.setSelection(editText.getText().length());
+                dialogContainer.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 24, 12, 24, 12));
+
+                builder.setView(dialogContainer);
+                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialog, which) -> {
+                    int value;
+                    try {
+                        value = Integer.parseInt(editText.getText().toString());
+                    } catch (Exception e) {
+                        value = 60;
+                    }
+                    if (value <= 0) {
+                        value = 1;
+                    }
+                    if (value != SharedConfig.outgoingMessagesBlockDuration) {
+                        SharedConfig.outgoingMessagesBlockDuration = value;
+                        SharedConfig.saveConfig();
+                        if (listAdapter != null) {
+                            listAdapter.notifyItemChanged(outgoingMessagesBlockDurationRow);
+                        }
+                    }
+                });
+                showDialog(builder.create());
             }
         });
 
@@ -249,6 +286,8 @@ public class AdvancedSettingsActivity extends BaseFragment {
                         settingsCell.setTextAndValue(LocaleController.getString(R.string.DeveloperRoundVideoDuration), LocaleController.formatPluralString("Seconds", SharedConfig.roundVideoMaxDuration), true);
                     } else if (position == roundVideoCameraRow) {
                         settingsCell.setTextAndValue(LocaleController.getString(R.string.DeveloperRoundVideoCamera), getRoundVideoCameraValue(), false);
+                    } else if (position == outgoingMessagesBlockDurationRow) {
+                        settingsCell.setTextAndValue(LocaleController.getString(R.string.DeveloperOutgoingBlockDuration), LocaleController.formatPluralString("Minutes", SharedConfig.outgoingMessagesBlockDuration), false);
                     }
                     break;
                 }
@@ -258,7 +297,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow || position == roundVideoDurationRow || position == roundVideoCameraRow;
+            return position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow || position == roundVideoDurationRow || position == roundVideoCameraRow || position == outgoingMessagesBlockDurationRow;
         }
 
         @NonNull
@@ -292,7 +331,7 @@ public class AdvancedSettingsActivity extends BaseFragment {
                 return 0;
             } else if (position == allowScreenshotsRow || position == allowSaveMediaRow || position == allowCopyRow || position == keepDisappearingRow || position == localPremiumRow) {
                 return 1;
-            } else if (position == roundVideoDurationRow || position == roundVideoCameraRow) {
+            } else if (position == roundVideoDurationRow || position == roundVideoCameraRow || position == outgoingMessagesBlockDurationRow) {
                 return 2;
             }
             return 3;

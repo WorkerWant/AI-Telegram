@@ -505,6 +505,7 @@ public class SharedConfig {
                 editor.putBoolean("localPremium", localPremium);
                 editor.putInt("roundVideoMaxDuration", roundVideoMaxDuration);
                 editor.putInt("roundVideoCameraBehavior", roundVideoCameraBehavior);
+                editor.putInt("outgoingMessagesBlockDuration", outgoingMessagesBlockDuration);
                 
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("AI Settings saving: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -689,6 +690,7 @@ public class SharedConfig {
             localPremium = preferences.getBoolean("localPremium", false);
             roundVideoMaxDuration = preferences.getInt("roundVideoMaxDuration", 60);
             roundVideoCameraBehavior = preferences.getInt("roundVideoCameraBehavior", ROUND_VIDEO_CAMERA_FRONT);
+            outgoingMessagesBlockDuration = preferences.getInt("outgoingMessagesBlockDuration", 60);
             
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("AI Settings loaded: enabled=" + aiEnabled + ", contextSize=" + aiContextSize + ", typingDelay=" + aiTypingDelay);
@@ -1023,6 +1025,7 @@ public class SharedConfig {
         dayNightWallpaperSwitchHint = 0;
         roundVideoCameraBehavior = ROUND_VIDEO_CAMERA_FRONT;
         roundVideoMaxDuration = 60;
+        outgoingMessagesBlockDuration = 60;
         saveConfig();
     }
 
@@ -2014,6 +2017,7 @@ public class SharedConfig {
     public static boolean localPremium;
     public static int roundVideoCameraBehavior;
     public static int roundVideoMaxDuration;
+    public static int outgoingMessagesBlockDuration;
 
     public static final int ROUND_VIDEO_CAMERA_FRONT = 0;
     public static final int ROUND_VIDEO_CAMERA_BACK = 1;

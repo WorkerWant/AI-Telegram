@@ -158,6 +158,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.OutgoingMessagesBlocker;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
@@ -3765,6 +3766,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     case ProfileActionsView.KEY_NOTIFICATION:
                         onNotificationsClicked(true, x, y, actionsView);
                         break;
+                    case ProfileActionsView.KEY_ALARM:
+                        onAlarmClicked();
+                        break;
                     case ProfileActionsView.KEY_MESSAGE:
                         if (isTopic) {
                             openTopic();
@@ -6137,6 +6141,24 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             startActivityForResult(Intent.createChooser(intent, LocaleController.getString(R.string.BotShare)), 500);
         } catch (Exception e) {
             FileLog.e(e);
+        }
+    }
+
+    private void onAlarmClicked() {
+        if (userId == 0) {
+            return;
+        }
+        long did = getDialogId();
+        if (!DialogObject.isUserDialog(did)) {
+            return;
+        }
+        int minutes = SharedConfig.outgoingMessagesBlockDuration;
+        if (minutes <= 0) {
+            minutes = 1;
+        }
+        OutgoingMessagesBlocker.blockForMinutes(currentAccount, did, minutes);
+        if (BulletinFactory.canShowBulletin(this)) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.passcode_lock_close, LocaleController.formatString(R.string.OutgoingMessagesBlocked, LocaleController.formatPluralString("Minutes", minutes))).show();
         }
     }
 
@@ -11988,6 +12010,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         boolean voiceChatAction = false;
         boolean leaveAction = false;
         boolean addStoryAction = false;
+        boolean alarmAction = false;
 
         if (userId != 0) {
             TLRPC.User user = getMessagesController().getUser(userId);
@@ -12015,6 +12038,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 selfUser = true;
             } else {
+                alarmAction = !isBot;
                 if (user.bot && user.bot_can_edit) {
                     editItemVisible = true;
                 }
@@ -12217,6 +12241,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             actionsView.set(ProfileActionsView.KEY_STORY, addStoryAction);
             actionsView.set(ProfileActionsView.KEY_VOICE_CHAT, voiceChatAction);
             actionsView.set(ProfileActionsView.KEY_STREAM, streamAction);
+            actionsView.set(ProfileActionsView.KEY_ALARM, alarmAction);
 
             actionsView.set(ProfileActionsView.KEY_GIFT, giftAction);
             callItemVisible = videoCallItemVisible = false;

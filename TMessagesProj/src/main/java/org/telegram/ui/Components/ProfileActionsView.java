@@ -93,6 +93,7 @@ public class ProfileActionsView extends View {
     public static final int KEY_SET_PHOTO = 14;
     public static final int KEY_EDIT_USERNAME = 15;
     public static final int KEY_EDIT_INFO = 16;
+    public static final int KEY_ALARM = 17;
 
     private boolean isApplying;
     private boolean isNotificationsEnabled;
@@ -679,9 +680,14 @@ public class ProfileActionsView extends View {
             case MODE_USER:
                 insertIfAvailable(out, KEY_MESSAGE);
                 insertIfAvailable(out, KEY_NOTIFICATION);
-                insertIfAvailable(out, KEY_CALL);
-                insertIfAvailable(out, KEY_VIDEO);
-                insertIfNotAvailable(out, KEY_GIFT, KEY_VIDEO);
+                insertIfAvailable(out, KEY_ALARM);
+                if (allAvailableActions.contains(KEY_CALL)) {
+                    out.add(getOrCreate(KEY_CALL));
+                } else if (allAvailableActions.contains(KEY_VIDEO)) {
+                    out.add(getOrCreate(KEY_VIDEO));
+                } else if (allAvailableActions.contains(KEY_GIFT)) {
+                    out.add(getOrCreate(KEY_GIFT));
+                }
                 break;
             case MODE_TOPIC:
                 insertIfAvailable(out, KEY_MESSAGE);
@@ -847,6 +853,9 @@ public class ProfileActionsView extends View {
                 break;
             case KEY_STORY:
                 newAction = new Action(R.drawable.story, R.string.ProfileActionsAddStory);
+                break;
+            case KEY_ALARM:
+                newAction = new Action(R.drawable.warning_sign, R.string.ProfileActionsAlarm);
                 break;
             case KEY_STOP:
                 newAction = new Action(R.drawable.block, R.string.ProfileActionsStop);
