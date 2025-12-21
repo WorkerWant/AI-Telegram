@@ -10824,6 +10824,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 replyLine.resetAnimation();
             }
             quoteHighlight = null;
+            if (summarizeButton != null) {
+                summarizeButton.reset();
+            }
         }
         if (transcribeButton != null) {
             transcribeButton.setOpen(currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.voiceTranscriptionOpen && currentMessageObject.messageOwner.voiceTranscriptionFinal && TranscribeButton.isVideoTranscriptionOpen(currentMessageObject), !messageIdChanged);
@@ -11439,6 +11442,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private void updateWaveform() {
         if (currentMessageObject == null || documentAttachType != DOCUMENT_ATTACH_TYPE_AUDIO && documentAttachType != DOCUMENT_ATTACH_TYPE_ROUND) {
+            useSeekBarWaveform = false;
+            useTranscribeButton = false;
+            useSummarizeButton = false;
+            if (summarizeButton != null) {
+                summarizeButton.reset();
+            }
             return;
         }
         byte[] waveform = currentMessageObject.getWaveform();
@@ -11456,6 +11465,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             !(MessageObject.getMedia(currentMessageObject.messageOwner) instanceof TLRPC.TL_messageMediaWebPage) &&
             (currentMessageObject.messageOwner.media == null || currentMessageObject.messageOwner.media.ttl_seconds == 0)
         );
+        useSummarizeButton = documentAttachType == DOCUMENT_ATTACH_TYPE_AUDIO &&
+            SharedConfig.aiVoiceSummarize &&
+            currentMessageObject.messageOwner != null &&
+            (!currentMessageObject.isOutOwner() || currentMessageObject.isSent());
         updateSeekBarWaveformWidth(null);
     }
 
